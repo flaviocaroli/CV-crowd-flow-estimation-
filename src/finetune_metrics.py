@@ -6,7 +6,15 @@ import matplotlib.pyplot as plt
 
 
 def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, save_path='models/resnet50_finetuned.pth'):
-    model = ResNet50Backbone().cuda()
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"Using CUDA: {torch.cuda.get_device_name(0)}")
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("Using Apple Metal Performance Shaders (MPS)")
+
+    model = ResNet50Backbone().to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -21,8 +29,8 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
         model.train()
         t_mae = t_mse = 0
         for img, count_map in train_loader:
-            img = img.cuda()
-            count = count_map.sum(dim=(1,2)).unsqueeze(1).float().cuda()
+            img = img.to(device)
+            count = count_map.sum(dim=(1,2)).unsqueeze(1).float().to(device)
             output = model(img)
             loss = criterion(output, count)
             optimizer.zero_grad()
@@ -35,8 +43,8 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
         v_mae = v_mse = 0
         with torch.no_grad():
             for img, count_map in val_loader:
-                img = img.cuda()
-                count = count_map.sum(dim=(1,2)).unsqueeze(1).float().cuda()
+                img = img.to(device)
+                count = count_map.sum(dim=(1,2)).unsqueeze(1).float().to(device)
                 output = model(img)
                 v_mae += torch.abs(output - count).sum().item()
                 v_mse += ((output - count)**2).sum().item()
