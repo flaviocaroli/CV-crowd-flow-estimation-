@@ -5,7 +5,7 @@ from models.resnet50_backbone import ResNet50Backbone
 import matplotlib.pyplot as plt
 
 
-def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, save_path='models/resnet50_finetuned.pth'):
+def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, save_path='../models/resnet50_finetuned.pth'):
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -60,6 +60,18 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
 
         print(f"Epoch {epoch+1}/{epochs} - Train MAE: {train_mae[-1]:.2f} - Val MAE: {val_mae[-1]:.2f}")
 
+    import os
+    os.makedirs(os.path.dirname('outputs/metrics_plot.png'), exist_ok=True)
+    if not os.path.exists(save_path):
+        print(f"Saving model to {'outputs/metrics_plot.png'}")
+    else:
+        print(f"Results already exists at {'outputs/metrics_plot.png'}, overwriting.")
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    if not os.path.exists(save_path):
+        print(f"Saving model to {save_path}")
+    else:
+        print(f"Model already exists at {save_path}, overwriting.")
     torch.save(model.state_dict(), save_path)
 
     plt.figure(figsize=(10, 5))
