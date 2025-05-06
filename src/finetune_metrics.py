@@ -5,7 +5,7 @@ from models.resnet50_backbone import ResNet50Backbone
 import matplotlib.pyplot as plt
 
 
-def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, save_path='../models/resnet50_finetuned.pth'):
+def train_model(data_module, epochs=10, lr=1e-4, batch_size=16, save_path='../models/resnet50_finetuned.pth'):
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -18,8 +18,8 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    train_loader = data_module.train_dataloader()
+    val_loader = data_module.val_dataloader()
 
     train_mae, val_mae = [], []
     train_mse, val_mse = [], []
@@ -28,9 +28,10 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
     for epoch in range(epochs):
         model.train()
         t_mae = t_mse = 0
-        for img, count_map in train_loader:
+        for batch in train_loader:
+            img, count_map = batch
             img = img.to(device)
-            count = count_map.sum(dim=(1,2)).unsqueeze(1).float().to(device)
+            count = count_map.sum(dim=(1, 2)).unsqueeze(1).float().to(device)
             output = model(img)
             loss = criterion(output, count)
             optimizer.zero_grad()
@@ -49,8 +50,8 @@ def train_model(train_dataset, val_dataset, epochs=10, lr=1e-4, batch_size=16, s
                 v_mae += torch.abs(output - count).sum().item()
                 v_mse += ((output - count)**2).sum().item()
 
-        n_train = len(train_dataset)
-        n_val = len(val_dataset)
+        n_train = len(train_loader.dataset)
+        n_val = len(val_loader.dataset)
         train_mae.append(t_mae / n_train)
         train_mse.append(t_mse / n_train)
         train_rmse.append((t_mse / n_train)**0.5)
