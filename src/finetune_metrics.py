@@ -125,7 +125,9 @@ def train_model(
     # plot metrics
     plt.figure(figsize=(8,4))
     plt.plot(train_mae, label='Train MAE')
-    plt.plot(val_mae,   label='Val MAE')
+    plt.plot(val_mae, label='Val MAE')
+    #plt.plot(train_mse, label='Train MSE')
+    #plt.plot(val_mse, label='Val MSE')
     plt.plot(train_rmse, label='Train RMSE')
     plt.plot(val_rmse,   label='Val RMSE')
     plt.legend()
