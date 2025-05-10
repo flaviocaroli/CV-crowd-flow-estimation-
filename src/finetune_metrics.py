@@ -9,7 +9,7 @@ from models.resnet50_backbone import ResNet50Backbone
 from models.vgg_backbone      import VGG19BNBackbone
 from models.alexnet_backbone  import AlexNetBackbone
 
-def get_backbone(model_name, pretrained=True, freeze_backbone=True):
+def get_backbone(model_name, pretrained=True, freeze_backbone=False):
     """
     Instantiate one of your three backbones, freeze its pretrained layers if requested,
     and return it ready for fine‑tuning the head.
@@ -23,10 +23,6 @@ def get_backbone(model_name, pretrained=True, freeze_backbone=True):
         model = VGG19BNBackbone(pretrained=pretrained)
         backbone_params = model.vgg.features
         head_params = model.vgg.classifier
-    elif model_name == "alexnet":
-        model = AlexNetBackbone(pretrained=pretrained)
-        backbone_params = model.alexnet.features
-        head_params = model.alexnet.classifier[6]
     else:
         raise ValueError(f"Unknown model_name {model_name}")
 
@@ -57,7 +53,7 @@ def train_model(
         print("Using CPU")
 
     # get backbone + identify head parameters for optimizer
-    model, head = get_backbone(model_name, pretrained=True, freeze_backbone=True)
+    model, head = get_backbone(model_name, pretrained=True, freeze_backbone=False)
     model = model.to(device)
 
     # only train head parameters
