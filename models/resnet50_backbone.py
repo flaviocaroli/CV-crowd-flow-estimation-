@@ -13,3 +13,14 @@ class ResNet50Backbone(nn.Module):
 
     def forward(self, x):
         return self.resnet(x)
+    
+    def save_activation(self, module, input, output):
+        self.activations = output.detach()
+
+    def save_gradient(self, module, grad_input, grad_output):
+        self.gradients = grad_output[0].detach()
+
+# Hook into the target conv layer
+target_layer = model.layer4[1].conv2  # for example
+target_layer.register_forward_hook(save_activation)
+target_layer.register_backward_hook(save_gradient)
