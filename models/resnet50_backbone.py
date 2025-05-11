@@ -6,7 +6,7 @@ class ResNet50Backbone(nn.Module):
         super().__init__()
         self.resnet = models.resnet50(pretrained=pretrained)
         self.resnet.fc = nn.Sequential(
-            nn.Linear(self.resnet.fc.in_features, 512),
+            nn.Linear(self.resnet.fc.in_features, 256), #256x256 could be convolutional
             nn.ReLU(),
             nn.Linear(512, 1)
         )
