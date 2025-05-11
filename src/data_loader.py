@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+from src.utils import create_density_map
 
 
 class ShanghaiTechDataset(Dataset):
@@ -16,12 +17,18 @@ class ShanghaiTechDataset(Dataset):
         split: str = "train_data",  # "train_data", "test_data" or "val_data"
         transform=None,
         target_size=(384, 384),
+        sigma=5,  # Added parameter for Gaussian kernel
+        density_map_size=None,  # Added parameter for output density map size
+        return_count=False,  # Added parameter to toggle between density map and count
     ):
         self.root = root
         self.part = part
         self.split = split
         self.transform = transform
         self.target_size = target_size
+        self.sigma = sigma
+        self.density_map_size = density_map_size or target_size  # Default to target_size if None
+        self.return_count = return_count
 
         # paths
         self.images_dir = os.path.join(root, part, split, "images")
@@ -54,46 +61,37 @@ class ShanghaiTechDataset(Dataset):
         mat_path = os.path.join(self.gt_dir, mat_name)
         mat = scipy.io.loadmat(mat_path)
 
-        # Create density map from point annotations
-        den = np.zeros((orig_height, orig_width), dtype=np.float32)
-
         # Extract points from image_info
         points = mat["image_info"][0, 0][0, 0][0]
 
-        # Place points on density map
+        # Scale points to match target_size
+        scaled_points = []
         for point in points:
-            x, y = (
-                int(min(point[0], orig_width - 1)),
-                int(min(point[1], orig_height - 1)),
-            )
-            den[y, x] = 1.0
+            x, y = point[0], point[1]
+            # Scale coordinates
+            x_scaled = x * (self.target_size[0] / orig_width)
+            y_scaled = y * (self.target_size[1] / orig_height)
+            scaled_points.append([x_scaled, y_scaled])
+        
+        scaled_points = np.array(scaled_points)
 
-        # Resize density map to match target size
-        if den.shape[0] != self.target_size[1] or den.shape[1] != self.target_size[0]:
-            original_count = den.sum()  # Preserve total count
-
-            # Create resized density map
-            resized_den = np.zeros(
-                (self.target_size[1], self.target_size[0]), dtype=np.float32
-            )
-
-            # Simple resize by scaling coordinates
-            y_ratio = self.target_size[1] / orig_height
-            x_ratio = self.target_size[0] / orig_width
-
-            for point in points:
-                x, y = point[0] * x_ratio, point[1] * y_ratio
-                x, y = (
-                    int(min(x, self.target_size[0] - 1)),
-                    int(min(y, self.target_size[1] - 1)),
-                )
-                resized_den[y, x] = 1.0
-
-            den = resized_den
-
-            # Scale to preserve count if needed
-            if original_count > 0 and den.sum() > 0:
-                den = den * (original_count / den.sum())
+        # Create density map using utility function
+        density_map = create_density_map(
+            centroids=scaled_points, 
+            img_size=self.target_size[::-1],  # (height, width)
+            sigma=self.sigma
+        )
+        
+        # Resize density map if needed
+        if self.density_map_size != self.target_size:
+            density_map_pil = Image.fromarray(density_map)
+            density_map_pil = density_map_pil.resize(self.density_map_size, Image.BILINEAR)
+            
+            # Preserve count after resizing
+            original_count = density_map.sum()
+            density_map = np.array(density_map_pil)
+            if density_map.sum() > 0:
+                density_map = density_map * (original_count / density_map.sum())
 
         # Apply transform to image
         if self.transform:
@@ -101,10 +99,13 @@ class ShanghaiTechDataset(Dataset):
         else:
             img = transforms.ToTensor()(img)
 
-        # Convert density map to tensor
-        den_tensor = torch.from_numpy(den)
-
-        return img, den_tensor
+        # Convert density map to tensor or get count
+        if self.return_count:
+            count = density_map.sum()
+            return img, torch.tensor([count], dtype=torch.float32)
+        else:
+            den_tensor = torch.from_numpy(density_map).unsqueeze(0)  # Add channel dimension
+            return img, den_tensor
 
 
 class ShanghaiTechDataModule:
@@ -112,25 +113,47 @@ class ShanghaiTechDataModule:
     The main datamodule. When iterated over, returns batches of (X, y) of sequence and target sequence shifted by one.
     """
 
-    def __init__(self, data_folder, part, validation_split=0.1, seed=42):
+    def __init__(
+        self, 
+        data_folder, 
+        part="part_A",
+        validation_split=0.1, 
+        seed=42,
+        sigma=5,  # Added parameter
+        density_map_size=None,  # Added parameter
+        return_count=False,  # Added parameter
+        batch_size=8,  # Made configurable
+        num_workers=4  # Made configurable
+    ):
         self.data_folder = data_folder
-        self.batch_size = 8
-        self.num_workers = 4
+        self.part = part
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         self.validation_split = validation_split
         self.seed = seed
+        self.sigma = sigma
+        self.density_map_size = density_map_size
+        self.return_count = return_count
 
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
+        # Setup image transforms
+        image_transform = transforms.Compose([
+            transforms.Resize((384, 384)), 
+            transforms.ToTensor()
+        ])
+
         # Load the dataset
         self.train_data = ShanghaiTechDataset(
             root=self.data_folder,
-            part=part,
+            part=self.part,
             split="train_data",
-            transform=transforms.Compose(
-                [transforms.Resize((384, 384)), transforms.ToTensor()]
-            ),
+            transform=image_transform,
+            sigma=self.sigma,
+            density_map_size=self.density_map_size,
+            return_count=self.return_count
         )
 
         # Split the dataset into train and validation sets
@@ -144,11 +167,12 @@ class ShanghaiTechDataModule:
 
         self.test_dataset = ShanghaiTechDataset(
             root=self.data_folder,
-            part=part,
+            part=self.part,
             split="test_data",
-            transform=transforms.Compose(
-                [transforms.Resize((384, 384)), transforms.ToTensor()]
-            ),
+            transform=image_transform,
+            sigma=self.sigma,
+            density_map_size=self.density_map_size,
+            return_count=self.return_count
         )
 
     def train_dataloader(self):
