@@ -44,6 +44,11 @@ class ResNet50DensityBackbone(nn.Module):
         # Final 1×1 conv to density
         self.final = nn.Conv2d(64, 1, kernel_size=1, bias=True)
 
+        # RElu to avoid negative density values
+        self.relu = nn.ReLU(inplace=True)
+
+
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass:
@@ -66,6 +71,7 @@ class ResNet50DensityBackbone(nn.Module):
 
         # --- Final density map ---
         out = self.final(d2)                            # [B,   1, H,   W   ]
+        out = self.relu(out)                            # [B,   1, H,   W   ]
         return out
 
 # Quick sanity check:

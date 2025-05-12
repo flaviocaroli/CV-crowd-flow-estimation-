@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 # import your updated UNet‐style backbone
 from models.resnet50_backbone import ResNet50DensityBackbone
+from tqdm import tqdm
 from models.vgg_backbone      import VGG19BNBackbone  
 from models.unet_backbone import UNetDensityBackbone  
 
@@ -108,7 +109,7 @@ def train_model(
         running_mae = 0.0
         count = 0
 
-        for img, gt_density in train_loader:
+        for img, gt_density in tqdm(train_loader, desc=f"Epoch {epoch}/{epochs} [Train]", leave=False):
             img        = img.to(device)         # [B,3,H,W]
             gt_density = gt_density.to(device)  # [B,1,H,W]
 
