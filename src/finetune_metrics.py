@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 
 # import your updated UNet‐style backbone
 from models.resnet50_backbone import ResNet50DensityBackbone
-from models.vgg_backbone      import VGG19BNBackbone  # if you have a VGG U‐Net
+from models.vgg_backbone      import VGG19BNBackbone  
+from models.unet_backbone import UNetDensityBackbone  
 
 def get_backbone(model_name, pretrained=True, freeze_encoder=False):
     """
@@ -30,6 +31,23 @@ def get_backbone(model_name, pretrained=True, freeze_encoder=False):
             list(model.dec3.parameters()) +
             list(model.dec2.parameters()) +
             list(model.final.parameters())
+        )
+    elif model_name == "unet":
+        model = UNetDensityBackbone(pretrained=pretrained)
+        # Separate encoder and decoder parts
+        enc_params = (
+            list(model.inc.parameters()) +
+            list(model.down1.parameters()) +
+            list(model.down2.parameters()) +
+            list(model.down3.parameters()) +
+            list(model.down4.parameters())
+        )
+        dec_params = (
+            list(model.up1.parameters()) +
+            list(model.up2.parameters()) +
+            list(model.up3.parameters()) +
+            list(model.up4.parameters()) +
+            list(model.outc.parameters())
         )
 
     elif model_name == "vgg19_bn":
