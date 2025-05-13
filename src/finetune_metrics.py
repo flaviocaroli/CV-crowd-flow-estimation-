@@ -74,7 +74,8 @@ def train_model(
     model_name="resnet50",
     epochs=10,
     lr=1e-4,
-    save_path=f'../models/{{model_name}}_finetuned.pth'
+    save_path=f'../models/{{model_name}}_finetuned.pth',
+    pretrained=True,
 ):
     # Device selection
     if torch.cuda.is_available():
@@ -89,7 +90,7 @@ def train_model(
 
     # Build model & optimizer
     model, trainable = get_backbone(
-        model_name, pretrained=True, freeze_encoder=False
+        model_name, pretrained=pretrained, freeze_encoder=False
     )
     model.to(device)
     optimizer = torch.optim.Adam(trainable, lr=lr)
@@ -114,6 +115,8 @@ def train_model(
             gt_density = gt_density.to(device)  # [B,1,H,W]
 
             pred_density = model(img)           # [B,1,H,W]
+            assert pred_density.shape == gt_density.shape, \
+                f"Shape mismatch: {pred_density.shape} vs {gt_density.shape}"
             mse_loss = criterion(pred_density, gt_density)
 
             optimizer.zero_grad()
