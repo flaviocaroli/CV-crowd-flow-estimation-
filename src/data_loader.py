@@ -16,7 +16,7 @@ class ShanghaiTechDataset(Dataset):
         part: str = "part_A",
         split: str = "train_data",  # "train_data", "test_data" or "val_data"
         transform=None,
-        target_size=(384, 384),
+        target_size=(384, 384), 
         sigma=5,  # Added parameter for Gaussian kernel
         density_map_size=None,  # Added parameter for output density map size
         return_count=False,  # Added parameter to toggle between density map and count
