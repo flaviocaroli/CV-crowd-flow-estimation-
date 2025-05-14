@@ -1,83 +1,135 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models
+import torchvision.models as models
 
-def up_block(in_ch, out_ch):
-    """
-    A small upsampling block: bilinear ×2 → 3×3 conv → BN → ReLU
-    """
-    return nn.Sequential(
-        nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-        nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1, bias=False),
-        nn.BatchNorm2d(out_ch),
-        nn.ReLU(inplace=True),
-    )
 
-class ResNet50DensityBackbone(nn.Module):
+class DoubleConv(nn.Module):
     """
-    U-Net–style ResNet-50 for crowd density estimation.
-    Outputs a single-channel density map [B,1,H,W] matching your image inputs.
+    Two consecutive conv3x3 -> BN -> ReLU
     """
-    def __init__(self, pretrained: bool = True):
+    def __init__(self, in_ch, out_ch):
         super().__init__()
-        # 1) Encoder: ResNet50 trunk with dilation in the last stage
-        base = models.resnet50(
-            weights=models.ResNet50_Weights.DEFAULT if pretrained else None,
-            replace_stride_with_dilation=[False, False, True]
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
         )
 
-        # Encoder feature stages
-        self.enc1 = nn.Sequential(base.conv1, base.bn1, base.relu)  # → [B,  64, H/2,  W/2 ]
-        self.pool = base.maxpool                                   # → [B,  64, H/4,  W/4 ]
-        self.enc2 = base.layer1                                     # → [B, 256, H/4,  W/4 ]
-        self.enc3 = base.layer2                                     # → [B, 512, H/8,  W/8 ]
-        self.enc4 = base.layer3                                     # → [B,1024, H/16, W/16]
-        self.enc5 = base.layer4                                     # → [B,2048, H/16, W/16]
-
-        # 2) Decoder with skip connections, reversing the reductions
-        self.dec5 = up_block(2048, 1024)                        # 16→8
-        self.dec4 = up_block(1024 + 512, 512)                   # 8→4
-        self.dec3 = up_block(512  + 256, 256)                   # 4→2
-        self.dec2 = up_block(256  + 64,  64)                    # 2→1
-
-        # Final 1×1 conv to density
-        self.final = nn.Conv2d(64, 1, kernel_size=1, bias=True)
-
-        # RElu to avoid negative density values
-        self.relu = nn.ReLU(inplace=True)
+    def forward(self, x):
+        return self.double_conv(x)
 
 
+class Down(nn.Module):
+    """
+    Downscaling with maxpool then double conv
+    """
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.down = nn.Sequential(
+            nn.MaxPool2d(2),
+            DoubleConv(in_ch, out_ch)
+        )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass:
-          x: [B, 3, H, W]
-          returns density: [B, 1, H, W]
-        """
-        # --- Encoder ---
-        e1 = self.enc1(x)     # [B,  64, H/2,  W/2 ]
-        p1 = self.pool(e1)    # [B,  64, H/4,  W/4 ]
-        e2 = self.enc2(p1)    # [B, 256, H/4,  W/4 ]
-        e3 = self.enc3(e2)    # [B, 512, H/8,  W/8 ]
-        e4 = self.enc4(e3)    # [B,1024, H/16, W/16]
-        e5 = self.enc5(e4)    # [B,2048, H/16, W/16]
+    def forward(self, x):
+        return self.down(x)
 
-        # --- Decoder + Skips ---
-        d5 = self.dec5(e5)                              # [B,1024, H/8, W/8 ]
-        d4 = self.dec4(torch.cat([d5, e3], dim=1))      # [B, 512, H/4, W/4 ]
-        d3 = self.dec3(torch.cat([d4, e2], dim=1))      # [B, 256, H/2, W/2 ]
-        d2 = self.dec2(torch.cat([d3, e1], dim=1))      # [B,  64, H,   W   ]
 
-        # --- Final density map ---
-        out = self.final(d2)                            # [B,   1, H,   W   ]
-        out = self.relu(out)                            # [B,   1, H,   W   ]
-        return out
+class Up(nn.Module):
+    """
+    Upscaling then double conv
+    """
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        # use bilinear upsampling
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
+        self.conv = DoubleConv(in_ch, out_ch)
 
-# Quick sanity check:
-if __name__ == "__main__":
-    model = ResNet50DensityBackbone(pretrained=False)
-    x = torch.randn(2, 3, 384, 384)
-    y = model(x)
-    print("Input:", x.shape, "Output:", y.shape)
-    # Should print: Input: torch.Size([2,3,384,384])  Output: torch.Size([2,1,384,384])
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # pad if necessary
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+        if diffY or diffX:
+            x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                            diffY // 2, diffY - diffY // 2])
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
+
+class ResNet50Backbone(nn.Module):
+    """
+    U-Net for density map regression using ResNet50 encoder.
+    Outputs [B,1,H,W] given [B,3,H,W].
+    If pretrained=True, uses torchvision ResNet50 encoder with ImageNet weights.
+    """
+    def __init__(self, in_channels=3, pretrained=False):
+        super().__init__()
+        self.pretrained = pretrained
+        if pretrained:
+            # Load ResNet50 pretrained on ImageNet
+            resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+            # Initial conv block
+            self.inc = nn.Sequential(
+                resnet.conv1,
+                resnet.bn1,
+                resnet.relu
+            )
+            # Encoder layers
+            self.down1 = nn.Sequential(resnet.maxpool, resnet.layer1)  # 64 -> 256
+            self.down2 = resnet.layer2  # 256 -> 512
+            self.down3 = resnet.layer3  # 512 -> 1024
+            self.down4 = resnet.layer4  # 1024 -> 2048
+            # Decoder layers (with skip connections)
+            self.up1 = Up(2048 + 1024, 1024)
+            self.up2 = Up(1024 + 512, 512)
+            self.up3 = Up(512 + 256, 256)
+            self.up4 = Up(256 + 64, 64)
+            # Final conv to density map
+            self.outc = nn.Conv2d(64, 1, kernel_size=1)
+            self.relu = nn.ReLU(inplace=True)
+        else:
+            # Standard U-Net encoder
+            self.inc = DoubleConv(in_channels, 64)
+            self.down1 = Down(64, 128)
+            self.down2 = Down(128, 256)
+            self.down3 = Down(256, 512)
+            self.down4 = Down(512, 512)
+            # Decoder
+            self.up1 = Up(512 + 512, 256)
+            self.up2 = Up(256 + 256, 128)
+            self.up3 = Up(128 + 128, 64)
+            self.up4 = Up(64 + 64, 64)
+            self.outc = nn.Conv2d(64, 1, kernel_size=1)
+            self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        if self.pretrained:
+            # Encoder path
+            x1 = self.inc(x)      # [B,64,H/2,W/2]
+            x2 = self.down1(x1)   # [B,256,H/4,W/4]
+            x3 = self.down2(x2)   # [B,512,H/8,W/8]
+            x4 = self.down3(x3)   # [B,1024,H/16,W/16]
+            x5 = self.down4(x4)   # [B,2048,H/32,W/32]
+            # Decoder path
+            d1 = self.up1(x5, x4)
+            d2 = self.up2(d1, x3)
+            d3 = self.up3(d2, x2)
+            d4 = self.up4(d3, x1)
+            out = self.outc(d4)
+            return self.relu(out)
+        # Non-pretrained forward
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        d1 = self.up1(x5, x4)
+        d2 = self.up2(d1, x3)
+        d3 = self.up3(d2, x2)
+        d4 = self.up4(d3, x1)
+        out = self.outc(d4)
+        return self.relu(out)

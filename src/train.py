@@ -5,59 +5,32 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
 # import your updated UNet‐style backbone
-from models.resnet50_backbone import ResNet50DensityBackbone
+from models.resnet50_backbone import ResNet50Backbone
 from tqdm import tqdm
-from models.vgg_backbone      import VGG19BNBackbone  
-from models.unet_backbone import UNetDensityBackbone  
+from models.vgg_backbone import VGG19BNBackbone  
 
 def get_backbone(model_name, pretrained=True, freeze_encoder=False):
     """
-    Instantiate a U-Net–style density backbone, optionally freeze encoder,
-    and return (model, trainable_params).
+    Returns (model, trainable_params) for 'resnet50' or 'vgg19_bn'.
+    Raises on unsupported names.
     """
     if model_name == "resnet50":
-        model = ResNet50DensityBackbone(pretrained=pretrained)
-        # Encoder stages: enc1, enc2, enc3, enc4, enc5
-        enc_params = (
-            list(model.enc1.parameters()) +
-            list(model.enc2.parameters()) +
-            list(model.enc3.parameters()) +
-            list(model.enc4.parameters()) +
-            list(model.enc5.parameters())
-        )
-        # Decoder blocks: dec5, dec4, dec3, dec2, + final conv
-        dec_params = (
-            list(model.dec5.parameters()) +
-            list(model.dec4.parameters()) +
-            list(model.dec3.parameters()) +
-            list(model.dec2.parameters()) +
-            list(model.final.parameters())
-        )
-    elif model_name == "unet":
-        model = UNetDensityBackbone(pretrained=pretrained)
-        # Separate encoder and decoder parts
-        enc_params = (
-            list(model.inc.parameters()) +
-            list(model.down1.parameters()) +
-            list(model.down2.parameters()) +
-            list(model.down3.parameters()) +
-            list(model.down4.parameters())
-        )
-        dec_params = (
-            list(model.up1.parameters()) +
-            list(model.up2.parameters()) +
-            list(model.up3.parameters()) +
-            list(model.up4.parameters()) +
-            list(model.outc.parameters())
-        )
-
+        model = ResNet50Backbone(pretrained=pretrained)
+        enc_layers = ["inc", "down1", "down2", "down3", "down4"]
+        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
     elif model_name == "vgg19_bn":
         model = VGG19BNBackbone(pretrained=pretrained)
-        enc_params = list(model.vgg.features.parameters())
-        dec_params = list(model.decoder.parameters())
-
+        enc_layers = ["enc1", "enc2", "enc3", "enc4", "enc5"]
+        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
     else:
-        raise ValueError(f"Unknown model_name {model_name}")
+        raise ValueError(f"Unsupported backbone '{model_name}'")
+
+    enc_params = []
+    for layer in enc_layers:
+        enc_params += list(getattr(model, layer).parameters())
+    dec_params = []
+    for layer in dec_layers:
+        dec_params += list(getattr(model, layer).parameters())
 
     if freeze_encoder:
         for p in enc_params:
@@ -67,6 +40,7 @@ def get_backbone(model_name, pretrained=True, freeze_encoder=False):
         trainable = enc_params + dec_params
 
     return model, trainable
+
 
 
 def train_model(
