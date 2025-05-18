@@ -1,45 +1,12 @@
 import os
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
 # import your updated UNet‐style backbone
-from models.resnet50_backbone import ResNet50Backbone
 from tqdm import tqdm
-from models.vgg_backbone import VGG19BNBackbone  
 
-def get_backbone(model_name, pretrained=True, freeze_encoder=False):
-    """
-    Returns (model, trainable_params) for 'resnet50' or 'vgg19_bn'.
-    Raises on unsupported names.
-    """
-    if model_name == "resnet50":
-        model = ResNet50Backbone(pretrained=pretrained)
-        enc_layers = ["inc", "down1", "down2", "down3", "down4"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
-    elif model_name == "vgg19_bn":
-        model = VGG19BNBackbone(pretrained=pretrained)
-        enc_layers = ["enc1", "enc2", "enc3", "enc4", "enc5"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
-    else:
-        raise ValueError(f"Unsupported backbone '{model_name}'")
-
-    enc_params = []
-    for layer in enc_layers:
-        enc_params += list(getattr(model, layer).parameters())
-    dec_params = []
-    for layer in dec_layers:
-        dec_params += list(getattr(model, layer).parameters())
-
-    if freeze_encoder:
-        for p in enc_params:
-            p.requires_grad = False
-        trainable = dec_params
-    else:
-        trainable = enc_params + dec_params
-
-    return model, trainable
+from src.utils import get_device, get_model
 
 
 
@@ -48,22 +15,16 @@ def train_model(
     model_name="resnet50",
     epochs=10,
     lr=1e-4,
-    save_path=f'../models/{{model_name}}_finetuned.pth',
+    save_path='../models/{{model_name}}_finetuned.pth',
     pretrained=True,
+    device=None,
 ):
-    # Device selection
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print(f"Using CUDA: {torch.cuda.get_device_name(0)}")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-        print("Using Apple MPS")
-    else:
-        device = torch.device("cpu")
-        print("Using CPU")
+    
+    if device is None:
+        device = get_device()
 
     # Build model & optimizer
-    model, trainable = get_backbone(
+    model, trainable = get_model(
         model_name, pretrained=pretrained, freeze_encoder=False
     )
     model.to(device)
@@ -141,8 +102,8 @@ def train_model(
     plt.figure(figsize=(8,4))
     plt.plot(train_pixel_mse, label='Train MSE')
     plt.plot(val_pixel_mse,   label='Val MSE')
-    plt.plot(train_pixel_mae, label='Train MAE')
-    plt.plot(val_pixel_mae,   label='Val MAE')
+    #plt.plot(train_pixel_mae, label='Train MAE')
+    #plt.plot(val_pixel_mae,   label='Val MAE')
     plt.xlabel('Epoch')
     plt.ylabel('Pixelwise Error')
     plt.title(f'{model_name} Pixelwise MSE & MAE')
@@ -150,3 +111,5 @@ def train_model(
     os.makedirs('outputs', exist_ok=True)
     plt.savefig(f'outputs/{model_name}_pixelwise_errors.png')
     plt.show()
+
+    return model
