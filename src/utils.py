@@ -2,54 +2,6 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter
-import os
-from models.resnet50_backbone import ResNet50Backbone
-from models.vgg19bn_backbone import VGG19BNBackbone
-
-def get_model(model_name, pretrained=True, freeze_encoder=False, cpt=None, device=None):
-    """
-    Returns (model, trainable_params) for 'resnet50' or 'vgg19_bn'.
-    Raises on unsupported names.
-    """
-
-
-    if model_name == "resnet50":
-        model = ResNet50Backbone(pretrained=pretrained)
-        enc_layers = ["inc", "down1", "down2", "down3", "down4"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
-    elif model_name == "vgg19_bn":
-        model = VGG19BNBackbone(pretrained=pretrained)
-        enc_layers = ["enc1", "enc2", "enc3", "enc4", "enc5"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
-    else:
-        raise ValueError(f"Unsupported backbone '{model_name}'")
-
-    if cpt is not None:
-        # Load checkpoint
-        if os.path.isfile(cpt):
-            print(f"Loading checkpoint '{cpt}'")
-            checkpoint = torch.load(cpt, map_location=device)
-            model.load_state_dict(checkpoint)
-            print("Checkpoint loaded successfully")
-        else:
-            raise FileNotFoundError(f"No checkpoint found at '{cpt}'")
-
-    enc_params = []
-    for layer in enc_layers:
-        enc_params += list(getattr(model, layer).parameters())
-    dec_params = []
-    for layer in dec_layers:
-        dec_params += list(getattr(model, layer).parameters())
-
-    if freeze_encoder:
-        for p in enc_params:
-            p.requires_grad = False
-        trainable = dec_params
-    else:
-        trainable = enc_params + dec_params
-
-    model.to(device)
-    return model, trainable
 
 
 def get_device():
@@ -205,3 +157,69 @@ def plot_density_predictions(model, dataloader, device, num_samples=5, figsize=(
             plt.tight_layout()
             plt.show()
             shown += 1
+
+def plot_all_decoder_predictions(model, dataloader, device, figsize_per_pred=(5, 5), i=0):
+    """
+    Plots input image, ground-truth density, and the decoder predictions
+    at each upsampling stage (for just one image).
+    """
+    model.eval()
+    with torch.no_grad():
+        for idx, el in enumerate(dataloader):
+            imgs, gt_maps = el
+            if idx == i:
+                break
+        
+        img = imgs[0]          # (3, H, W)
+        gt_map = gt_maps[0]    # (1, H, W)
+        input_img = img.unsqueeze(0).to(device)
+
+        # Run model to get intermediate predictions
+        preds = model(input_img, return_intermediates=True)
+        # preds: list of [1, C, h, w], except last: [1,1,H,W]
+
+        # Prepare visuals
+        rgb = img.permute(1, 2, 0).cpu().numpy()
+        gt = gt_map.squeeze(0).cpu().numpy()
+        gt_sum = gt.sum()
+
+        # Plotting
+        n_preds = len(preds)
+        fig, axes = plt.subplots(1, 2 + n_preds, figsize=(figsize_per_pred[0]*(2+n_preds), figsize_per_pred[1]))
+        # Input image
+        axes[0].imshow(rgb)
+        axes[0].set_title("Input Image")
+        axes[0].axis("off")
+
+        # GT density
+        axes[1].imshow(gt, cmap="jet")
+        axes[1].set_title("Ground-Truth Density")
+        axes[1].axis("off")
+        axes[1].text(
+            0.02, 0.95, f"Sum: {gt_sum:.2f}",
+            transform=axes[1].transAxes,
+            fontsize=12, color="white", fontweight="bold",
+            bbox=dict(facecolor="black", alpha=0.5, boxstyle="round,pad=0.3"),
+            verticalalignment="top", horizontalalignment="left"
+        )
+
+        # Decoder outputs
+        for i, p in enumerate(preds):
+            # Pick first channel if not already 1-channel (e.g., up layers)
+            pm = p[0]
+            if pm.shape[0] > 1:
+                pm = pm[0]
+            pm = pm.cpu().numpy()
+            pred_sum = pm.sum()
+            axes[2+i].imshow(pm.squeeze(), cmap="jet")
+            axes[2+i].set_title(f"Dec {i+1}\nSum: {pred_sum:.2f}")
+            axes[2+i].axis("off")
+            axes[2+i].text(
+                0.02, 0.95, f"Sum: {pred_sum:.2f}",
+                transform=axes[2+i].transAxes,
+                fontsize=12, color="white", fontweight="bold",
+                bbox=dict(facecolor="black", alpha=0.5, boxstyle="round,pad=0.3"),
+                verticalalignment="top", horizontalalignment="left"
+            )
+        plt.tight_layout()
+        plt.show()

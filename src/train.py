@@ -6,20 +6,34 @@ import matplotlib.pyplot as plt
 # import your updated UNet‐style backbone
 from tqdm import tqdm
 
-from src.utils import get_device, get_model
+from src.models import get_model
+from src.utils import get_device
 
-
+def construct_name(model_name, pretrained, freeze_encoder):
+    """
+    Constructs a name for the model based on its parameters.
+    """
+    name = f"{model_name}"
+    if pretrained:
+        name += "_pretrained"
+    if freeze_encoder:
+        name += "_freeze_encoder"
+    return name
 
 def train_model(
     data_module,
     model_name="resnet50",
     epochs=10,
     lr=1e-4,
-    save_path='../models/{{model_name}}_finetuned.pth',
+    save_path='',
     pretrained=True,
+    freeze_encoder=False,
     device=None,
 ):
     
+    if save_path == '':
+        save_path = construct_name(model_name, pretrained, freeze_encoder)
+
     if device is None:
         device = get_device()
 
@@ -28,7 +42,7 @@ def train_model(
         model_name, pretrained=pretrained, freeze_encoder=False
     )
     model.to(device)
-    optimizer = torch.optim.Adam(trainable, lr=lr)
+    optimizer = torch.optim.AdamW(trainable, lr=lr)
     criterion = nn.MSELoss()
 
     train_loader = data_module.train_dataloader()
@@ -95,15 +109,13 @@ def train_model(
 
     # Save model weights
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    torch.save(model.state_dict(), save_path.format(model_name=model_name))
-    print(f"Saved weights to {save_path.format(model_name=model_name)}")
+    torch.save(model.state_dict(), save_path)
+    print(f"Saved weights to {save_path}")
 
     # Plot pixelwise metrics
     plt.figure(figsize=(8,4))
     plt.plot(train_pixel_mse, label='Train MSE')
     plt.plot(val_pixel_mse,   label='Val MSE')
-    #plt.plot(train_pixel_mae, label='Train MAE')
-    #plt.plot(val_pixel_mae,   label='Val MAE')
     plt.xlabel('Epoch')
     plt.ylabel('Pixelwise Error')
     plt.title(f'{model_name} Pixelwise MSE & MAE')
