@@ -1,40 +1,76 @@
 import torch.nn as nn
-from .unet_comp import DoubleConv, Down, Up
+from .unet_comp import DoubleConv, Down, Up, CustomOutConv
 
-class UNet4(nn.Module):
+
+class UNet(nn.Module):
     """
-    U-Net for density map regression using ResNet50 encoder.
-    Outputs [B,1,H,W] given [B,3,H,W].
-    If pretrained=True, uses torchvision ResNet50 encoder with ImageNet weights.
+    Generic U-Net with variable depth D.
+    - in_channels: # input channels (e.g. 3 for RGB)
+    - num_filters: F, number of features at the first level
+    - depth: number of down/up steps (positive integer)
+    
+    forward(x, return_intermediates=False):
+      - x: [B, in_channels, H, W]
+      - returns [B,1,H,W], or if return_intermediates,
+        a list of decoder outputs [d1, d2, ..., dD, final_out].
     """
-    def __init__(self, in_channels=3, base_channels=32):
+    def __init__(self, in_channels=3, num_filters=32, depth=4, **kwargs):
         super().__init__()
-        # Encoder
-        self.inc = DoubleConv(in_channels, base_channels)
-        self.down1 = Down(base_channels, base_channels * 2)
-        self.down2 = Down(base_channels * 2, base_channels * 4)
-        self.down3 = Down(base_channels * 4, base_channels * 8)
-        self.down4 = Down(base_channels * 8, base_channels * 8)
-        # Decoder
-        self.up1 = Up(base_channels * 8 + base_channels * 8, base_channels * 4)
-        self.up2 = Up(base_channels * 4 + base_channels * 4, base_channels * 2)
-        self.up3 = Up(base_channels * 2 + base_channels * 2, base_channels)
-        self.outc = nn.Conv2d(base_channels, 1, kernel_size=1)
-        self.relu = nn.ReLU(inplace=True)
+        assert depth >= 1, "Depth must be >= 1"
+        assert num_filters > 0, "Base channels must be > 0"
+        # check that if you divide the input size by 2^depth, you get a positive integer
+        custom_head = kwargs.get("custom_head", False)
+        self.depth = depth
+        F = num_filters
+        
+        self.inc = nn.Sequential(
+            DoubleConv(in_channels, F),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # build descending path
+        self.downs = nn.ModuleList()
+        for i in range(depth):
+            in_ch = F * (2**i)
+            out_ch = F * (2**(i+1))
+            self.downs.append(Down(in_ch, out_ch))
+        
+        # build ascending path
+        self.ups = nn.ModuleList()
+        for i in reversed(range(depth)):
+            # at this up-step, we combine:
+            #   - feature from the level below: F*2^(i+1)
+            #   - skip feature from encoder: F*2^i
+            in_ch = F*(2**(i+1)) + F*(2**i)
+            out_ch = F*(2**i)
+            self.ups.append(Up(in_ch, out_ch))
+        if custom_head:
+            self.outc = CustomOutConv(F, **kwargs)
+        else:
+            # final 1x1 conv to map F channels -> 1
+            self.outc = nn.Sequential(
+                nn.Conv2d(F, 1, kernel_size=1),
+                nn.ReLU(inplace=True),
+            )
 
-    def forward(self, 
-                x, 
-                return_intermediates=False):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        d1 = self.up1(x5, x4)
-        d2 = self.up2(d1, x3)
-        d3 = self.up3(d2, x2)
-        out = self.outc(d3)
-        out = self.relu(out)
+    def forward(self, x, return_intermediates=False):
+        # Encoder
+        x_enc = [self.inc(x)]  # x_enc[0] has shape [B, F,   H,   W]
+        for down in self.downs:
+            x_enc.append(down(x_enc[-1]))
+        # x_enc[k] has shape [B, F*2^k, H/2^k, W/2^k],  k=0..depth
+        
+        # Decoder
+        intermediates = []
+        x_dec = x_enc[-1]  # bottom feature
+        for up, skip in zip(self.ups, reversed(x_enc[:-1])):
+            x_dec = up(x_dec, skip)
+            if return_intermediates:
+                intermediates.append(x_dec)
+        
+        out = self.outc(x_dec)
         if return_intermediates:
-            return [d1, d2, d3, out]
+            intermediates.append(out)
+            return intermediates
+        
         return out

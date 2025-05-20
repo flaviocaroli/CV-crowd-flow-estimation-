@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import numpy as np
 import scipy.io
@@ -7,6 +7,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
+import pytorch_lightning as pl
 
 from src.utils import create_density_map, show_samples_from_loaders, get_device
 
@@ -31,7 +32,7 @@ class ShanghaiTechDataset(Dataset):
         self.root = root
         self.part = part
         self.split = split
-        self.transform = transform
+        self.transform = transform or get_default_transform(input_size)
         self.input_size = input_size
         self.sigma = sigma
         self.density_map_size = density_map_size or input_size
@@ -75,8 +76,7 @@ class ShanghaiTechDataset(Dataset):
     def __len__(self) -> int:
         return len(self.image_files)
 
-    def __getitem__(self, idx: int) -> Union[Tuple[torch.Tensor, torch.Tensor],
-                                            Tuple[torch.Tensor, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         # ---------- file names --------------------------------------------
         img_name = self.image_files[idx]
         img_path = os.path.join(self.images_dir, img_name)
@@ -86,10 +86,11 @@ class ShanghaiTechDataset(Dataset):
         # ---------- image -------------------------------------------------
         img = self._load_image(img_path)
         orig_wh = img.size                                    # (W, H)
-        img = img.resize(self.input_size, Image.BILINEAR)
+        img = img.resize(self.input_size, Image.Resampling.BILINEAR)
 
-        img_tensor = (self.transform(img) if self.transform
-                      else transforms.ToTensor()(img))
+        img_tensor = self.transform(img)
+        if not isinstance(img_tensor, torch.Tensor):
+            img_tensor = torch.tensor(img_tensor, dtype=torch.float32)
 
         # ---------- ground-truth points ----------------------------------
         points = self._load_points(mat_path)
@@ -104,7 +105,7 @@ class ShanghaiTechDataset(Dataset):
         # ---------- density map ------------------------------------------
         density_map = create_density_map(
             centroids=scaled_for_density,
-            img_size=self.density_map_size[::-1],   # (H, W)
+            img_size=self.density_map_size,   # (H, W)
             sigma=self.sigma,
         )                                           # sum == crowd count
 
@@ -124,9 +125,9 @@ def get_default_transform(input_size: Tuple[int, int]) -> transforms.Compose:
     )
 
 
-class ShanghaiTechDataModule:
+class ShanghaiTechDataModule(pl.LightningDataModule):
     """
-    The main datamodule. When iterated over, returns batches of (X, y) of sequence and target sequence shifted by one.
+    The main ShanghaiTechDataModule. When iterated over, returns batches of (X, y) of sequence and target sequence shifted by one.
     """
 
     def __init__(
@@ -156,6 +157,8 @@ class ShanghaiTechDataModule:
         self.device = device or get_device()
         self.pin_memory = True if self.device != "mps" else False
         self.transform: Optional[transforms.Compose] = None or get_default_transform(input_size=self.input_size)
+        self.allow_zero_length_dataloader_with_multiple_devices = False
+        self._log_hyperparams = True
 
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -164,10 +167,7 @@ class ShanghaiTechDataModule:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-        # Setup datasets
-        self._setup_datasets()
-
-    def _setup_datasets(self):
+    def setup(self, stage=None):
         full_dataset = ShanghaiTechDataset(
             root=self.data_folder,
             part=self.part,
@@ -227,7 +227,6 @@ class ShanghaiTechDataModule:
             shuffle=False,
             pin_memory=self.pin_memory,
         )
-
 
 if __name__ == "__main__":
     data_folder = "./data/ShanghaiTech"

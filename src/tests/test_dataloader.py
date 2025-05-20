@@ -6,7 +6,7 @@ import os
 import sys
 
 # Import our modified data loader
-from src.data_loader import ShanghaiTechDataset, ShanghaiTechDataModule
+from src.data_loader import ShanghaiTechDataset, ShanghaiTechShanghaiTechDataModule
 
 # Path to ShanghaiTech dataset
 data_path = "data/ShanghaiTech"  # Update this to your path
@@ -70,9 +70,9 @@ visualize_data_sample(return_count=True)
 print("\n5. Testing with Part B dataset")
 visualize_data_sample(part="part_B")
 
-# Using the DataModule
-def test_datamodule(part="part_A", sigma=5, return_count=False):
-    dm = ShanghaiTechDataModule(
+# Using the ShanghaiTechDataModule
+def test_ShanghaiTechDataModule(part="part_A", sigma=5, return_count=False):
+    dm = ShanghaiTechShanghaiTechDataModule(
         data_folder=data_path,
         part=part,
         sigma=sigma,
@@ -105,10 +105,10 @@ def test_datamodule(part="part_A", sigma=5, return_count=False):
     plt.tight_layout()
     plt.show()
 
-print("\n6. Testing DataModule with default settings")
-test_datamodule()
+print("\n6. Testing ShanghaiTechDataModule with default settings")
+test_ShanghaiTechDataModule()
 
-print("\n7. Testing DataModule with return_count=True")
-test_datamodule(return_count=True)
+print("\n7. Testing ShanghaiTechDataModule with return_count=True")
+test_ShanghaiTechDataModule(return_count=True)
 
 sys.exit(0)
