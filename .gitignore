@@ -4,3 +4,9 @@ data/
 
 .DS_Store
 *.pth
+*.pt
+*.ckpt
+*.npy
+
+wandb
+models
