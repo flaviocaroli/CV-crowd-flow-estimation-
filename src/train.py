@@ -1,127 +1,112 @@
+import pytorch_lightning as pl
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping
+import wandb
 import os
-import torch
-from torch import nn
-import matplotlib.pyplot as plt
 
-# import your updated UNet‐style backbone
-from tqdm import tqdm
-
-from src.models import get_model
+from src.data_loader import ShanghaiTechDataModule
+from src.train_lightning import LitDensityEstimator
 from src.utils import get_device
 
-def construct_name(model_name, pretrained, freeze_encoder):
-    """
-    Constructs a name for the model based on its parameters.
-    """
-    name = f"{model_name}"
-    if pretrained:
-        name += "_pretrained"
-    if freeze_encoder:
-        name += "_freeze_encoder"
-    return name
+def main():
+    # Initialize Weights & Biases (W&B)
+    wandb_project = "density_estimation"
+    pl.seed_everything(42)
+    device = get_device()
 
-def train_model(
-    data_module,
-    model_name="resnet50",
-    epochs=10,
-    lr=1e-4,
-    save_path='',
-    pretrained=True,
-    freeze_encoder=False,
-    device=None,
-):
-    
-    if save_path == '':
-        save_path = construct_name(model_name, pretrained, freeze_encoder)
-
-    if device is None:
-        device = get_device()
-
-    # Build model & optimizer
-    model, trainable = get_model(
-        model_name, pretrained=pretrained, freeze_encoder=False
+    # Prepare the data
+    data_module = ShanghaiTechDataModule(
+        data_folder="./data/ShanghaiTech",  # adjust as needed
+        part="part_A",
+        validation_split=0.1,
+        sigma=5,
+        return_count=False,
+        batch_size=16,
+        num_workers=4,
+        input_size=(384, 384),
+        density_map_size=(192, 192),
+        device=device,
     )
-    model.to(device)
-    optimizer = torch.optim.AdamW(trainable, lr=lr)
-    criterion = nn.MSELoss()
+    data_module.setup()
 
-    train_loader = data_module.train_dataloader()
-    val_loader   = data_module.val_dataloader()
+    # Experiment configurations
+    configs = [
+        {"depth": 4, "num_filters": 32},
+        {"depth": 3, "num_filters": 64},
+        {"depth": 3, "num_filters": 32},
+        {"depth": 2, "num_filters": 64},
+        {"depth": 2, "num_filters": 128},
+    ]
 
-    train_pixel_mae = []
-    val_pixel_mae   = []
-    train_pixel_mse = []
-    val_pixel_mse   = []
+    def make_name(cfg):
+        return f"unet_depth{cfg['depth']}_nf{cfg['num_filters']}"
 
-    for epoch in range(1, epochs+1):
-        model.train()
-        running_mse = 0.0
-        running_mae = 0.0
-        count = 0
+    for cfg in configs:
+        name = make_name(cfg)
+        checkpoint_dir = os.path.join("./models/checkpoints", name)
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
-        for img, gt_density in tqdm(train_loader, desc=f"Epoch {epoch}/{epochs} [Train]", leave=False):
-            img        = img.to(device)         # [B,3,H,W]
-            gt_density = gt_density.to(device)  # [B,1,H,W]
+        # Setup W&B logger
+        wandb_logger = WandbLogger(
+            project=wandb_project,
+            name=name,
+            tags=["unet", f"depth_{cfg['depth']}", f"nf_{cfg['num_filters']}"],
+        )
 
-            pred_density = model(img)           # [B,1,H,W]
-            assert pred_density.shape == gt_density.shape, \
-                f"Shape mismatch: {pred_density.shape} vs {gt_density.shape}"
-            mse_loss = criterion(pred_density, gt_density)
+        # Checkpoint callback
+        checkpoint_callback = ModelCheckpoint(
+            dirpath=checkpoint_dir,
+            filename=name + "_{epoch:02d}",
+            save_top_k=1,
+            monitor="val_mse",
+            mode="min"
+        )
 
-            optimizer.zero_grad()
-            mse_loss.backward()
-            optimizer.step()
+        # LR monitor callback
+        lr_monitor = LearningRateMonitor(logging_interval="step")
 
-            # accumulate pixelwise metrics
-            running_mse += mse_loss.item() * img.size(0)
-            running_mae += torch.abs(pred_density - gt_density).sum().item()
-            count += img.numel()  # total number of pixels processed
+        # Early stopping callback
+        early_stop_callback = EarlyStopping(
+            monitor="val_mse",
+            patience=10,            # stop if no improvement in 10 checks
+            mode="min",
+            verbose=True,
+            min_delta=0.0001,      # minimum change to qualify as an improvement
+        )
 
-        # average over total pixels
-        train_mse = running_mse / len(train_loader.dataset)
-        train_mae = running_mae / count
-        train_pixel_mse.append(train_mse)
-        train_pixel_mae.append(train_mae)
+        # Initialize model
+        model = LitDensityEstimator(
+            model_name="unet",
+            lr=1e-4,
+            pretrained=True,
+            freeze_encoder=False,
+            depth=cfg["depth"],
+            num_filters=cfg["num_filters"],
+            device=device,
+        )
 
-        # Validation
-        model.eval()
-        val_mse_accum = 0.0
-        val_mae_accum = 0.0
-        val_pixels = 0
-        with torch.no_grad():
-            for img, gt_density in val_loader:
-                img        = img.to(device)
-                gt_density = gt_density.to(device)
-                pred_density = model(img)
+        # Initialize Trainers
+        trainer = Trainer(
+            max_epochs=50,
+            default_root_dir="./outputs",
+            logger=wandb_logger,
+            callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],
+            accelerator=str(device).lower(),
+            devices=1,
+            log_every_n_steps=50,
+        )
 
-                val_mse_accum += criterion(pred_density, gt_density).item() * img.size(0)
-                val_mae_accum += torch.abs(pred_density - gt_density).sum().item()
-                val_pixels += img.numel()
+        # Fit model
+        trainer.fit(model, datamodule=data_module)
 
-        val_mse = val_mse_accum / len(val_loader.dataset)
-        val_mae = val_mae_accum / val_pixels
-        val_pixel_mse.append(val_mse)
-        val_pixel_mae.append(val_mae)
+        # Save final checkpoint
+        trainer.save_checkpoint(os.path.join(checkpoint_dir, name + ".ckpt"))
 
-        print(f"[{model_name}] Epoch {epoch}/{epochs}  "
-              f"Train MSE: {train_mse:.6f}, MAE: {train_mae:.6f}  "
-              f"Val   MSE: {val_mse:.6f}, MAE: {val_mae:.6f}")
+        trainer.test(model, datamodule=data_module)
 
-    # Save model weights
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    torch.save(model.state_dict(), save_path)
-    print(f"Saved weights to {save_path}")
+        # Finish W&B run
+        wandb.finish()
 
-    # Plot pixelwise metrics
-    plt.figure(figsize=(8,4))
-    plt.plot(train_pixel_mse, label='Train MSE')
-    plt.plot(val_pixel_mse,   label='Val MSE')
-    plt.xlabel('Epoch')
-    plt.ylabel('Pixelwise Error')
-    plt.title(f'{model_name} Pixelwise MSE & MAE')
-    plt.legend()
-    os.makedirs('outputs', exist_ok=True)
-    plt.savefig(f'outputs/{model_name}_pixelwise_errors.png')
-    plt.show()
-
-    return model
+if __name__ == "__main__":
+    main()
