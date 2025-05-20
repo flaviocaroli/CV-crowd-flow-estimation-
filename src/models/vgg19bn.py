@@ -7,7 +7,7 @@ class VGG19BNBackbone(nn.Module):
     U-Net for density regression using VGG19_bn encoder.
     Outputs [B,1,H/2,W/2] given [B,3,H,W].
     """
-    def __init__(self, in_channels=3):
+    def __init__(self):
         super().__init__()
         vgg = models.vgg19_bn(weights=models.VGG19_BN_Weights.IMAGENET1K_V1)
         feats = list(vgg.features.children())
@@ -30,7 +30,7 @@ class VGG19BNBackbone(nn.Module):
         self.outc  = nn.Conv2d(64, 1, kernel_size=1)
         self.relu  = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x, return_intermediates: bool = False):
         
         x1 = self.enc1(x)
         x2 = self.pool1(x1); x2 = self.enc2(x2)
@@ -43,5 +43,8 @@ class VGG19BNBackbone(nn.Module):
         d2 = self.up2(d1, x4)
         d3 = self.up3(d2, x3)
         d4 = self.up4(d3, x2)   # ← skip from x2 for half-res output
+        out = self.relu(self.outc(d4))
 
-        return self.relu(self.outc(d4))
+        if return_intermediates:
+            return [d1, d2, d3, d4, out]
+        return out

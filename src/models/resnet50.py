@@ -11,7 +11,7 @@ class ResNet50Backbone(nn.Module):
     If pretrained=True, uses torchvision ResNet50 encoder with ImageNet weights.
     """
 
-    def __init__(self, in_channels=3):
+    def __init__(self):
         super().__init__()
         # Load ResNet50 pretrained on ImageNet
         resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
@@ -19,9 +19,10 @@ class ResNet50Backbone(nn.Module):
         self.inc = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu)
         # Encoder layers
         self.down1 = nn.Sequential(resnet.maxpool, resnet.layer1)  # 64 -> 256
-        self.down2 = resnet.layer2  # 256 -> 512
+        self.down2 = resnet.layer2  # 256 -> 512, 
         self.down3 = resnet.layer3  # 512 -> 1024
         self.down4 = resnet.layer4  # 1024 -> 2048
+
         # Decoder layers (with skip connections)
         self.up1 = Up(2048 + 1024, 1024)
         self.up2 = Up(1024 + 512, 512)

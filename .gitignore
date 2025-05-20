@@ -9,4 +9,4 @@ data/
 *.npy
 
 wandb
-models
+./models

@@ -43,6 +43,8 @@ class Up(nn.Module):
     def __init__(self, in_ch, out_ch):
         super().__init__()
         # use bilinear upsampling
+        self.in_ch = in_ch
+        self.out_ch = out_ch
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False)
         self.conv = DoubleConv(in_ch, out_ch)
 
