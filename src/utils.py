@@ -20,7 +20,7 @@ def get_device():
     return device
 
 
-def create_density_map(centroids, img_size, sigma: float = 5.0):
+def create_density_map(centroids:np.ndarray, img_size: tuple, sigma: float = 5.0):
     """
     Create a density map from the given centroids.
 
@@ -302,8 +302,9 @@ def plot_dec_steps_batch(imgs, gt_maps, preds_list, figsize_per_pred=(4, 4)):
             ax = axes[2 + step, col]
             ax.imshow(pm_np, cmap="jet")
             if step == S - 1:
-                print(f"Predicted density {col}: Predicted sum = {pred_sum:.2f}")
-            ax.set_title(f"Dec {step + 1} [{col}]\nShape: {pm_np.shape}")
+                ax.set_title(f"Predicted density {col}: Predicted sum = {pred_sum:.2f}")
+            else:
+                ax.set_title(f"Dec {step + 1} [{col}]\nShape: {pm_np.shape}")
             ax.axis("off")
 
     plt.tight_layout()

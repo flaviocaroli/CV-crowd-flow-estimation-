@@ -1,7 +1,7 @@
 import os
-from .resnet50 import ResNet50Backbone
+from .resnet50 import ResNetUNet
 from .unet import UNet
-from .vgg19bn import VGG19BNBackbone
+from .vgg19bn import VGGUNet
 import torch
 
 
@@ -13,18 +13,27 @@ def get_model(
     If freeze_encoder=True, only decoder parameters remain trainable.
     """
     # Determine depth if provided
-    depth = kwargs.get("depth", kwargs.get("model_depth", 4))
+    depth = kwargs.pop("depth", kwargs.get("model_depth", 4))
+    in_channels = kwargs.pop("in_channels", 3)
+    num_filters = kwargs.pop("num_filters", 32)
 
     # Instantiate backbone
     if model_name == "resnet50":
-        model = ResNet50Backbone()
+        model = ResNetUNet(
+            depth=depth,
+            **kwargs,
+        )
     elif model_name == "vgg19_bn":
-        model = VGG19BNBackbone()
+        model = VGGUNet(
+            depth=depth,
+            **kwargs,
+        )
     elif model_name == "unet":
         model = UNet(
-            in_channels=kwargs.get("in_channels", 3),
-            base_channels=kwargs.get("base_channels", 32),
+            in_channels=in_channels,
+            num_filters=num_filters,
             depth=depth,
+            **kwargs,
         )
     else:
         raise ValueError(f"Unsupported backbone '{model_name}'")
