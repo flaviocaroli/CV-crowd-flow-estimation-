@@ -55,19 +55,33 @@ def main() -> None:
     for model in ["vgg", "resnet"]:
         for part in ["part_A", "part_B"]:
             for depth in range(2, 4):
-                config = base_config.copy()
-                config["name"] = f"experiment_{model}_{part}_d{depth}"
-                config["model_name"] = model
-                config["dataset_part"] = part
-                config["model_kwargs"] = {
-                    "base_channels": 32,
-                    "depth": depth,
-                    "stride_l1": 1,
-                    "stride_l2": 1,
-                    "dilation_l1": 1,
-                    "dilation_l2": 1,
-                }
-                configs.append(config)
+                for augment in [True, False]:
+                    # Base configuration for this combination
+                    base_cfg = base_config.copy()
+                    base_cfg["model_name"] = model
+                    base_cfg["dataset_part"] = part
+                    base_cfg["augment"] = augment
+                    base_cfg["model_kwargs"] = {
+                        "base_channels": 32,
+                        "depth": depth,
+                        "stride_l1": 1,
+                        "stride_l2": 1,
+                        "dilation_l1": 1,
+                        "dilation_l2": 1,
+                    }
+                    
+                    if augment:
+                        # Create separate configs for each augment factor
+                        for augment_factor in [3, 5]:
+                            config = base_cfg.copy()
+                            config["augment_factor"] = augment_factor
+                            config["name"] = f"experiment_{model}_{part}_d{depth}_aug{augment_factor}"
+                            configs.append(config)
+                    else:
+                        # Single config without augmentation
+                        config = base_cfg.copy()
+                        config["name"] = f"experiment_{model}_{part}_d{depth}"
+                        configs.append(config)
     
     # Parameter sweep
     for part in ["part_A", "part_B"]:
