@@ -2,7 +2,7 @@ import unittest
 import yaml
 import os
 import tempfile
-from src.config_utils import get_model_config
+from src.config_utils import get_model_config, load_experiment_configs
 
 class TestConfigUtils(unittest.TestCase):
 
@@ -105,6 +105,45 @@ class TestConfigUtils(unittest.TestCase):
             }
         }
         self.assertEqual(config, expected_config)
+
+
+class TestLoadExperimentConfigs(unittest.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.yaml_path = os.path.join(self.temp_dir.name, "exp_config.yaml")
+        self.yaml_content = {
+            "global": {"lr": 0.001, "batch_size": 8},
+            "evaluation": {"metric": "mae"},
+            "logging": {"log_dir": "/tmp"},
+            "experiments": [
+                {"name": "exp1", "lr": 0.01},
+                {"name": "exp2", "batch_size": 16}
+            ],
+        }
+        with open(self.yaml_path, "w") as f:
+            yaml.dump(self.yaml_content, f)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_merge_and_length(self):
+        cfgs = load_experiment_configs(self.yaml_path)
+        self.assertEqual(len(cfgs), 2)
+
+        exp1 = cfgs[0]
+        self.assertEqual(exp1["name"], "exp1")
+        self.assertEqual(exp1["lr"], 0.01)
+        self.assertEqual(exp1["batch_size"], 8)
+        self.assertEqual(exp1["evaluation"].get("metric"), "mae")
+        self.assertEqual(exp1["logging"].get("log_dir"), "/tmp")
+
+    def test_missing_name_raises(self):
+        self.yaml_content["experiments"].append({"lr": 0.02})
+        with open(self.yaml_path, "w") as f:
+            yaml.dump(self.yaml_content, f)
+        with self.assertRaises(ValueError):
+            load_experiment_configs(self.yaml_path)
 
 if __name__ == '__main__':
     # Create src directory if it doesn't exist, for config_utils import
