@@ -108,7 +108,7 @@ def main() -> None:
             "return_count": False,
             "device": device,
             "wandb_project": wandb_project,
-            "augment": True,
+            "augment": False,
             "augment_factor": 8,
         }
         for model in ["resnet", "vgg"]  # Add both models
