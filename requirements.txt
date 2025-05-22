@@ -1,3 +1,4 @@
+pytorch_lightning
 torch
 torchvision
 numpy
@@ -8,4 +9,3 @@ pandas
 jupyter
 albumentations
 pytest
-yaml
