@@ -1,0 +1,45 @@
+global:
+  model_name: UNet
+  base_channels: 64 # This might be superseded by model_kwargs.base_channels
+  dropout_rate: 0.1
+  use_dilated_conv: false # This might be superseded by model_kwargs.use_dilated_conv
+  learning_rate: 0.001
+  
+  # Added for train_lightning.py example
+  data_folder: "./data/ShanghaiTech" # Example path
+  dataset_part: "part_A"
+  num_workers: 4
+  sigma: 5.0 # For density map generation
+  pretrained: true
+  freeze_encoder: false
+  max_epochs: 10
+  target_input_width: 384
+  target_input_height: 384
+  model_kwargs:
+    base_channels: 64 # Specific to UNet-like models
+    depth: 4          # Specific to UNet-like models
+    # use_dilated_conv: false # Already in global, but can be part of model_kwargs if model expects it there
+
+experiment_A:
+  base_channels: 128  # Overrides global if model directly uses it, or model_kwargs.base_channels overrides
+  dropout_rate: 0.15 # Overrides global
+  batch_size: 32 # This will be used by the script
+  augmentation:
+    hf_prob: 0.5
+    cj_brightness: 0.2
+  model_kwargs: # Experiment specific model_kwargs override global ones
+    base_channels: 128 
+    depth: 5
+
+experiment_B:
+  use_dilated_conv: true # Overrides global if model directly uses it
+  learning_rate: 0.0005 # Overrides global
+  batch_size: 16
+  augmentation:
+    hf_prob: 0.3
+    cj_brightness: 0.1
+    smart_crop:
+      min_factor: 0.5
+      max_factor: 0.9
+  model_kwargs:
+    use_dilated_conv: true

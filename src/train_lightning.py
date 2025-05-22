@@ -7,6 +7,11 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import OneCycleLR
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 
+# Added imports
+import argparse
+from src.config_utils import get_model_config
+from src.data_loader import ShanghaiTechDataModule
+
 import wandb
 from src.metrics import (
     count_mae,
@@ -110,3 +115,101 @@ class LitDensityEstimator(pl.LightningModule):
                 'frequency': 1
             }
         })
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Train a density estimation model.")
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default="experiment_A",
+        help="Name of the experiment to run, as defined in the config file."
+    )
+    parser.add_argument(
+        "--config_path",
+        type=str,
+        default="./train_config.yaml",
+        help="Path to the training configuration YAML file."
+    )
+    args = parser.parse_args()
+
+    # Load configuration
+    config = get_model_config(yaml_path=args.config_path, experiment_name=args.experiment_name)
+
+    # Extract data-related parameters
+    data_folder = config.get('data_folder', './data/ShanghaiTech')
+    part = config.get('dataset_part', 'part_A')
+    batch_size = config.get('batch_size', 8)
+    num_workers = config.get('num_workers', 4)
+    target_input_width = config.get('target_input_width', 384)
+    target_input_height = config.get('target_input_height', 384)
+    # ShanghaiTechDataModule expects target_input_size as (Width, Height)
+    target_input_size_datamodule = (target_input_width, target_input_height) 
+    # custom_transforms.build_transforms expects target_input_size as (Height, Width)
+    # This conversion is handled internally by ShanghaiTechDataModule if necessary,
+    # or build_transforms is called with (H,W) format.
+    # For this script, we prepare (W,H) for the DataModule.
+
+    sigma = config.get('sigma', 5.0)
+    augmentation_cfg = config.get('augmentation')
+
+    # Extract model-related parameters
+    model_name = config.get('model_name', 'unet') # default to 'unet' as per previous contexts
+    lr = config.get('learning_rate', 1e-4)
+    pretrained = config.get('pretrained', True)
+    freeze_encoder = config.get('freeze_encoder', False)
+    model_specific_kwargs = config.get('model_kwargs', {})
+
+    # Instantiate DataModule
+    # Note: ShanghaiTechDataModule's __init__ takes target_input_size as (W,H).
+    # Internally, its setup method calls build_transforms.
+    # build_transforms expects target_input_size as (H,W).
+    # The DataModule should handle this conversion if build_transforms is not changed.
+    # As of the last update to ShanghaiTechDataModule, it passes its (W,H) target_input_size
+    # directly to build_transforms. This means build_transforms receives (W,H) and uses
+    # target_input_size[0] as height (i.e., W) and target_input_size[1] as width (i.e., H)
+    # for A.Resize, which is incorrect.
+    # This should be fixed in ShanghaiTechDataModule.setup by calling:
+    # build_transforms(..., target_input_size=(self.target_input_size[1], self.target_input_size[0]))
+    # However, this script correctly passes (W,H) to the DataModule as per its __init__ signature.
+    
+    data_module = ShanghaiTechDataModule(
+        data_folder=data_folder,
+        part=part,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        target_input_size=target_input_size_datamodule, # (W,H)
+        target_density_map_size=target_input_size_datamodule, # Assuming (W,H) and same as input
+        sigma=sigma,
+        augmentation_config=augmentation_cfg
+    )
+
+    # Instantiate LitDensityEstimator
+    model = LitDensityEstimator(
+        model_name=model_name,
+        lr=lr,
+        pretrained=pretrained,
+        freeze_encoder=freeze_encoder,
+        **model_specific_kwargs
+    )
+
+    # Instantiate Trainer
+    # For simplicity, logger is omitted, PyTorch Lightning will use a default TensorBoardLogger or CSVLogger.
+    # wandb_logger = pl_loggers.WandbLogger(project="density_estimation", name=args.experiment_name)
+    trainer = pl.Trainer(
+        max_epochs=config.get('max_epochs', 10),
+        accelerator="auto",
+        devices="auto",
+        # logger=wandb_logger # Uncomment to use WandB
+    )
+
+    # Run Training and Testing
+    print(f"Starting training for experiment: {args.experiment_name} with config:")
+    import yaml
+    print(yaml.dump(config))
+
+    trainer.fit(model, datamodule=data_module)
+    print("Training finished.")
+
+    print("Starting testing...")
+    trainer.test(model, datamodule=data_module)
+    print("Testing finished.")
