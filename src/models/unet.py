@@ -1,11 +1,12 @@
 import torch.nn as nn
-from .unet_comp import DoubleConv, Down, Up
+from .unet_comp import DoubleConv, Down, Up, CustomOutConv
+
 
 class UNet(nn.Module):
     """
     Generic U-Net with variable depth D.
     - in_channels: # input channels (e.g. 3 for RGB)
-    - base_channels: F, number of features at the first level
+    - num_filters: F, number of features at the first level
     - depth: number of down/up steps (positive integer)
     
     forward(x, return_intermediates=False):
@@ -13,11 +14,14 @@ class UNet(nn.Module):
       - returns [B,1,H,W], or if return_intermediates,
         a list of decoder outputs [d1, d2, ..., dD, final_out].
     """
-    def __init__(self, in_channels=3, base_channels=32, depth=4):
+    def __init__(self, in_channels=3, num_filters=32, depth=4, **kwargs):
         super().__init__()
         assert depth >= 1, "Depth must be >= 1"
+        assert num_filters > 0, "Base channels must be > 0"
+        # check that if you divide the input size by 2^depth, you get a positive integer
+        custom_head = kwargs.get("custom_head", False)
         self.depth = depth
-        F = base_channels
+        F = num_filters
         
         self.inc = nn.Sequential(
             DoubleConv(in_channels, F),
@@ -40,10 +44,14 @@ class UNet(nn.Module):
             in_ch = F*(2**(i+1)) + F*(2**i)
             out_ch = F*(2**i)
             self.ups.append(Up(in_ch, out_ch))
-        
-        # final 1x1 conv to map F channels -> 1
-        self.outc = nn.Conv2d(F, 1, kernel_size=1)
-        self.relu = nn.ReLU(inplace=True)
+        if custom_head:
+            self.outc = CustomOutConv(F, **kwargs)
+        else:
+            # final 1x1 conv to map F channels -> 1
+            self.outc = nn.Sequential(
+                nn.Conv2d(F, 1, kernel_size=1),
+                nn.ReLU(inplace=True),
+            )
 
     def forward(self, x, return_intermediates=False):
         # Encoder
@@ -61,7 +69,6 @@ class UNet(nn.Module):
                 intermediates.append(x_dec)
         
         out = self.outc(x_dec)
-        out = self.relu(out)
         if return_intermediates:
             intermediates.append(out)
             return intermediates
