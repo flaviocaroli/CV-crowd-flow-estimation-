@@ -13,7 +13,7 @@ import torch
 
 from src.data_loader import ShanghaiTechDataModule
 from src.train_lightning import LitDensityEstimator
-from src.utils import get_device, compute_receptive_field
+from src.utils import compute_receptive_field
 import warnings
 warnings.filterwarnings("ignore", message="Clipping input data to the valid range for imshow")
 

@@ -84,7 +84,7 @@ def show_samples_from_loaders(data_module, sigma=5):
         imgs, densities = batches[loader_name]
         for row in range(batch_size):
             ax = axes[row, col]
-            img_np = imgs[row].permute(1, 2, 0).numpy()
+            img_np = denormalize_image(imgs[row])
             density_np = densities[row, 0].numpy()
             ax.imshow(img_np)
             ax.imshow(density_np, cmap="jet", alpha=0.5)
@@ -121,7 +121,7 @@ def plot_density_predictions(model, dataloader, device, num_samples=5, figsize=(
             pred_map = pred_map.squeeze().cpu().numpy()  # [H,W]
 
             # Prepare visuals
-            rgb = img.permute(1, 2, 0).cpu().numpy()
+            rgb = denormalize_image(img)
             gt = gt_map.squeeze(0).cpu().numpy()
             gt_sum = gt.sum()
             pred_sum = pred_map.sum()
@@ -195,7 +195,7 @@ def plot_all_decoder_predictions(
         # preds: list of [1, C, h, w], except last: [1,1,H,W]
 
         # Prepare visuals
-        rgb = img.permute(1, 2, 0).cpu().numpy()
+        rgb = denormalize_image(img)
         gt = gt_map.squeeze(0).cpu().numpy()
         gt_sum = gt.sum()
 
@@ -255,12 +255,31 @@ def plot_all_decoder_predictions(
         plt.show()
 
 
+def denormalize_image(img_tensor, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Denormalize a tensor image using ImageNet statistics.
+    
+    Args:
+        img_tensor (Tensor): Normalized image tensor, shape (3, H, W)
+        mean (list): Mean values used for normalization
+        std (list): Std values used for normalization
+        
+    Returns:
+        numpy.ndarray: Denormalized image as numpy array, shape (H, W, 3), values in [0, 1]
+    """
+    img = img_tensor.clone()
+    for i in range(3):
+        img[i] = img[i] * std[i] + mean[i]
+    img = torch.clamp(img, 0, 1)  # Clamp to [0, 1] range
+    return img.permute(1, 2, 0).cpu().numpy()
+
+
 def plot_dec_steps_batch(imgs, gt_maps, preds_list, figsize_per_pred=(4, 4)):
     """
     Plots a batch of images with ground-truth densities and decoder predictions.
 
     Args:
-        imgs (Tensor): batch of input images, shape (B, 3, H, W)
+        imgs (Tensor): batch of input images, shape (B, 3, H, W) - normalized
         gt_maps (Tensor): batch of ground-truth maps, shape (B, 1, H, W)
         preds_list (list of Tensors): list length S of decoder outputs,
             each Tensor shape (B, C, h, w) or (B,1,h,w).
@@ -276,8 +295,8 @@ def plot_dec_steps_batch(imgs, gt_maps, preds_list, figsize_per_pred=(4, 4)):
 
     # For each sample in batch
     for col in range(B):
-        # Input image
-        img = imgs[col].permute(1, 2, 0).cpu().numpy()
+        # Input image - denormalize for proper visualization
+        img = denormalize_image(imgs[col])
         ax = axes[0, col]
         ax.imshow(img)
         ax.set_title(f"Input [{col}]")
@@ -310,6 +329,7 @@ def plot_dec_steps_batch(imgs, gt_maps, preds_list, figsize_per_pred=(4, 4)):
     plt.tight_layout()
     return fig
 
+
 def compute_receptive_field(model: nn.Module):
     """
     Returns a list of dicts, one per Conv2d/Pool2d layer in model,
@@ -329,12 +349,18 @@ def compute_receptive_field(model: nn.Module):
                 return x[0] if isinstance(x, (tuple, list)) else x
 
             k = _unpack(layer.kernel_size)
-            s = _unpack(layer.stride)
+            # Handle stride defaults: pooling layers default to kernel_size
+            if layer.stride is None:
+                if isinstance(layer, (nn.MaxPool2d, nn.AvgPool2d)):
+                    s = k
+                else:
+                    s = 1
+            else:
+                s = _unpack(layer.stride)
             d = _unpack(getattr(layer, "dilation", 1))
 
             prev_rf, prev_jump = rf, jump
-            # convtranspose also has kernel & stride,
-            # we treat it the same here for simplicity
+            # Standard receptive field calculation
             rf = prev_rf + (k - 1) * d * prev_jump
             jump = prev_jump * s
 
