@@ -1,7 +1,7 @@
 import os
 from .resnet50 import ResNetUNet
 from .unet import UNet
-from .vgg19bn import VGGUNet
+from .vgg19 import VGGUNet
 import torch
 
 
@@ -18,12 +18,12 @@ def get_model(
     num_filters = kwargs.pop("num_filters", 32)
 
     # Instantiate backbone
-    if model_name == "resnet50":
+    if model_name == "resnet":
         model = ResNetUNet(
             depth=depth,
             **kwargs,
         )
-    elif model_name == "vgg19_bn":
+    elif model_name == "vgg":
         model = VGGUNet(
             depth=depth,
             **kwargs,

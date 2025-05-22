@@ -13,6 +13,8 @@ import os
 from src.data_loader import ShanghaiTechDataModule
 from src.train_lightning import LitDensityEstimator
 from src.utils import get_device, compute_receptive_field
+import warnings
+warnings.filterwarnings("ignore", message="Clipping input data to the valid range for imshow")
 
 def main() -> None:
     #parser = argparse.ArgumentParser(description="Train experiments from a YAML configuration file.")
@@ -49,27 +51,70 @@ def main() -> None:
         "learning_rate": 0.00005,
         "validation_split": 0.1,
         "return_count": False,
+        "device": device,
+        "wandb_project": wandb_project,
+        "augment": True,
+        "augment_factor": 8,
     }
 
     # Generate experiment configurations for different parameter combinations
     configs = []
     experiment_id = 1
     
-    for depth in range(1, 6):  # depth 1-5
-        for stride in range(1, 4):  # stride 1-3
-            for dilation in range(1, 4):  # dilation 1-3
-                config = base_config.copy()
-                config["name"] = f"experiment_d{depth}_s{stride}_dil{dilation}"
-                config["model_kwargs"] = {
-                    "base_channels": 8,
-                    "depth": depth,
-                    "stride_l1": stride,
-                    "stride_l2": stride,
-                    "dilation_l1": dilation,
-                    "dilation_l2": dilation,
-                }
-                configs.append(config)
-                experiment_id += 1
+    for part in ["part_A", "part_B"]:  # Add both parts
+        for depth in range(2, 4):  # depth 1-4
+            for stride in range(1, 4):  # stride 1-3
+                for dilation in range(1, 4):  # dilation 1-3
+                    config = base_config.copy()
+                    config["name"] = f"experiment_{part}_d{depth}_s{stride}_dil{dilation}"
+                    config["dataset_part"] = part
+                    config["model_kwargs"] = {
+                        "base_channels": 32,
+                        "depth": depth,
+                        "stride_l1": stride,
+                        "stride_l2": stride,
+                        "dilation_l1": dilation,
+                        "dilation_l2": dilation,
+                    }
+                    configs.append(config)
+                    experiment_id += 1
+
+    configs = [
+        {
+            "name": f"experiment_{model}_{part}_d{depth}",
+            "model_name": model,
+            "dataset_part": part,
+            "model_kwargs": {
+                "base_channels": 32,
+                "depth": depth,
+                "stride_l1": 1,
+                "stride_l2": 1,
+                "dilation_l1": 1,
+                "dilation_l2": 1,
+            },
+            "data_folder": "./data/ShanghaiTech",
+            "num_workers": 4,
+            "sigma": 5.0,
+            "pretrained": True,
+            "freeze_encoder": False,
+            "max_epochs": 150,
+            "target_input_width": 224,
+            "target_input_height": 224,
+            "target_density_map_width": 224,
+            "target_density_map_height": 224,
+            "batch_size": 8,
+            "learning_rate": 0.00005,
+            "validation_split": 0.1,
+            "return_count": False,
+            "device": device,
+            "wandb_project": wandb_project,
+            "augment": True,
+            "augment_factor": 8,
+        }
+        for model in ["resnet", "vgg"]  # Add both models
+        for part in ["part_A", "part_B"]  # Add both parts
+        for depth in range(2, 4)  # depth 1-4
+    ]
 
     print(f"Loaded {len(configs)}")
     for cfg in configs:
@@ -92,6 +137,8 @@ def main() -> None:
                     cfg.get("target_density_map_width", cfg.get("target_input_width", 384)),
                     cfg.get("target_density_map_height", cfg.get("target_input_height", 384)),
                 ),
+                augment=cfg.get("augment", True),
+                augment_factor=cfg.get("augment_factor", 8),
             )
             data_module.setup()
             checkpoint_dir = os.path.join("./models/checkpoints", name)
@@ -137,6 +184,7 @@ def main() -> None:
                 callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],
                 accelerator=str(device).lower(),
                 devices=1,
+
             )
 
             trainer.fit(model, train_dataloaders=data_module.train_dataloader(), val_dataloaders=data_module.val_dataloader())
