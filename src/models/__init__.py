@@ -1,31 +1,45 @@
 import os
-from .resnet50 import ResNet50Backbone
-from .unet import UNet4
-from .vgg19bn import VGG19BNBackbone
+from .resnet50 import ResNetUNet
+from .unet import UNet
+from .vgg19bn import VGGUNet
 import torch
 
-def get_model(model_name, pretrained=True, freeze_encoder=False, cpt=None, device=None):
+
+def get_model(
+    model_name, freeze_encoder=False, cpt=None, device=None, **kwargs
+):
     """
-    Returns (model, trainable_params) for 'resnet50' or 'vgg19_bn'.
-    Raises on unsupported names.
+    Returns (model, trainable_params) for 'resnet50', 'vgg19_bn', or 'unet'.
+    If freeze_encoder=True, only decoder parameters remain trainable.
     """
+    # Determine depth if provided
+    depth = kwargs.pop("depth", kwargs.get("model_depth", 4))
+    in_channels = kwargs.pop("in_channels", 3)
+    num_filters = kwargs.pop("num_filters", 32)
+
+    # Instantiate backbone
     if model_name == "resnet50":
-        model = ResNet50Backbone()
-        enc_layers = ["inc", "down1", "down2", "down3", "down4"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
+        model = ResNetUNet(
+            depth=depth,
+            **kwargs,
+        )
     elif model_name == "vgg19_bn":
-        model = VGG19BNBackbone()
-        enc_layers = ["enc1", "enc2", "enc3", "enc4", "enc5"]
-        dec_layers = ["up1", "up2", "up3", "up4", "outc"]
+        model = VGGUNet(
+            depth=depth,
+            **kwargs,
+        )
     elif model_name == "unet":
-        model = UNet4()
-        enc_layers = ["inc", "down1", "down2", "down3", "down4"]
-        dec_layers = ["up1", "up2", "up3", "outc"]
+        model = UNet(
+            in_channels=in_channels,
+            num_filters=num_filters,
+            depth=depth,
+            **kwargs,
+        )
     else:
         raise ValueError(f"Unsupported backbone '{model_name}'")
 
+    # Load checkpoint if provided
     if cpt is not None:
-        # Load checkpoint
         if os.path.isfile(cpt):
             print(f"Loading checkpoint '{cpt}'")
             checkpoint = torch.load(cpt, map_location=device)
@@ -34,21 +48,16 @@ def get_model(model_name, pretrained=True, freeze_encoder=False, cpt=None, devic
         else:
             raise FileNotFoundError(f"No checkpoint found at '{cpt}'")
 
-    enc_params = []
-    for layer in enc_layers:
-        enc_params += list(getattr(model, layer).parameters())
-    dec_params = []
-    for layer in dec_layers:
-        dec_params += list(getattr(model, layer).parameters())
-
+    # Optionally freeze encoder parameters
     if freeze_encoder:
-        for p in enc_params:
-            p.requires_grad = False
-        trainable = dec_params
-    else:
-        trainable = enc_params + dec_params
+        for name, param in model.named_parameters():
+            # keep decoder params trainable (upX and outc)
+            if not (name.startswith('up') or name.startswith('outc')):
+                param.requires_grad = False
 
+    # Move model to device
     model.to(device)
-    return model, trainable
+
+    return model
 
 __all__ = ["get_model"]
