@@ -53,32 +53,9 @@ def main() -> None:
         "return_count": False,
         "device": device,
         "wandb_project": wandb_project,
-        "augment": True,
+        "augment": False,
         "augment_factor": 8,
     }
-
-    # Generate experiment configurations for different parameter combinations
-    configs = []
-    experiment_id = 1
-    
-    for part in ["part_A", "part_B"]:  # Add both parts
-        for depth in range(2, 4):  # depth 1-4
-            for stride in range(1, 4):  # stride 1-3
-                for dilation in range(1, 4):  # dilation 1-3
-                    config = base_config.copy()
-                    config["name"] = f"experiment_{part}_d{depth}_s{stride}_dil{dilation}"
-                    config["dataset_part"] = part
-                    config["model_kwargs"] = {
-                        "base_channels": 32,
-                        "depth": depth,
-                        "stride_l1": stride,
-                        "stride_l2": stride,
-                        "dilation_l1": dilation,
-                        "dilation_l2": dilation,
-                    }
-                    configs.append(config)
-                    experiment_id += 1
-
     configs = [
         {
             "name": f"experiment_{model}_{part}_d{depth}",
@@ -115,6 +92,28 @@ def main() -> None:
         for part in ["part_A", "part_B"]  # Add both parts
         for depth in range(2, 4)  # depth 1-4
     ]
+
+    # Generate experiment configurations for different parameter combinations
+    experiment_id = 1
+    
+    for part in ["part_A", "part_B"]:  # Add both parts
+        for depth in range(2, 4):  # depth 1-4
+            for stride in range(1, 4):  # stride 1-3
+                for dilation in range(1, 4):  # dilation 1-3
+                    config = base_config.copy()
+                    config["name"] = f"experiment_{part}_d{depth}_s{stride}_dil{dilation}"
+                    config["dataset_part"] = part
+                    config["model_kwargs"] = {
+                        "base_channels": 32,
+                        "depth": depth,
+                        "stride_l1": stride,
+                        "stride_l2": stride,
+                        "dilation_l1": dilation,
+                        "dilation_l2": dilation,
+                    }
+                    configs.append(config)
+                    experiment_id += 1
+
 
     print(f"Loaded {len(configs)}")
     for cfg in configs:
