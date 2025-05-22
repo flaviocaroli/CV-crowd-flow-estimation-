@@ -13,27 +13,65 @@ import os
 from src.data_loader import ShanghaiTechDataModule
 from src.train_lightning import LitDensityEstimator
 from src.utils import get_device, compute_receptive_field
-from src.config_utils import load_experiment_configs
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train experiments from a YAML configuration file.")
-    parser.add_argument(
-        "--config-path",
-        type=str,
-        default="./train_config.yaml",
-        help=(
-            "Path to the training configuration YAML file."
-            " Pointing to a different YAML is all you need to run new experiments."
-        ),
-    )
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description="Train experiments from a YAML configuration file.")
+    #parser.add_argument(
+    #    "--config-path",
+    #    type=str,
+    #    default="./train_config.yaml",
+    #    help=(
+    #        "Path to the training configuration YAML file."
+    #        " Pointing to a different YAML is all you need to run new experiments."
+    #    ),
+    #)
+    #args = parser.parse_args()
 
-    wandb_project = "density_estimation_custom_head_init"
+    wandb_project = "density-estimation"
     pl.seed_everything(42)
     device = get_device()
 
-    configs = load_experiment_configs(args.config_path)
-    print(f"Loaded {len(configs)} configurations from {args.config_path}")
+    # Base configuration from train_config.yaml
+    base_config = {
+        "model_name": "unet",
+        "data_folder": "./data/ShanghaiTech",
+        "dataset_part": "part_A",
+        "num_workers": 4,
+        "sigma": 5.0,
+        "pretrained": True,
+        "freeze_encoder": False,
+        "max_epochs": 150,
+        "target_input_width": 224,
+        "target_input_height": 224,
+        "target_density_map_width": 224,
+        "target_density_map_height": 224,
+        "batch_size": 8,
+        "learning_rate": 0.00005,
+        "validation_split": 0.1,
+        "return_count": False,
+    }
+
+    # Generate experiment configurations for different parameter combinations
+    configs = []
+    experiment_id = 1
+    
+    for depth in range(1, 6):  # depth 1-5
+        for stride in range(1, 4):  # stride 1-3
+            for dilation in range(1, 4):  # dilation 1-3
+                config = base_config.copy()
+                config["name"] = f"experiment_d{depth}_s{stride}_dil{dilation}"
+                config["model_kwargs"] = {
+                    "base_channels": 8,
+                    "depth": depth,
+                    "stride_l1": stride,
+                    "stride_l2": stride,
+                    "dilation_l1": dilation,
+                    "dilation_l2": dilation,
+                }
+                configs.append(config)
+                experiment_id += 1
+
+    print(f"Loaded {len(configs)}")
     for cfg in configs:
         name = cfg["name"]
         try:

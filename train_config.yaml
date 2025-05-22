@@ -3,8 +3,7 @@ global:
   model_name: unet
   base_channels: 8
   dropout_rate: 0.1
-  use_dilated_conv: false
-  learning_rate: 0.001
+  learning_rate: 0.00005
   
   # Training configuration
   data_folder: "./data/ShanghaiTech"
@@ -18,13 +17,12 @@ global:
   target_input_height: 224
   target_density_map_width: 224
   target_density_map_height: 224
+  batch_size: 8
   
   
   # Model-specific parameters that get passed to the model constructor
   model_kwargs:
     base_channels: 8
-    depth: 4
-    use_dilated_conv: false
 
 # Optional evaluation settings (merged into each experiment by load_experiment_configs)
 evaluation:
@@ -36,75 +34,19 @@ logging:
   log_level: "INFO"
   save_checkpoints: true
 
-# For get_model_config function - direct experiment access
-experiment_A:
-  # Override global dropout rate
-  dropout_rate: 0.15
-  
-  # Training-specific parameters
-  batch_size: 8
-  
-  # Data augmentation settings
-  augmentation:
-    hf_prob: 0.5
-    cj_brightness: 0.2
-  
-  # Model parameters - these will be deep merged with global model_kwargs
-  model_kwargs:
-    depth: 5
-
-experiment_B:
-  # Override global learning rate
-  learning_rate: 0.0005
-  
-  # Training-specific parameters  
-  batch_size: 8
-  
-  # Data augmentation settings
-  augmentation:
-    hf_prob: 0.3
-    cj_brightness: 0.1
-    smart_crop:
-      min_factor: 0.5
-      max_factor: 0.9
-  
-  # Model parameters - these will be deep merged with global model_kwargs
-  model_kwargs:
-    use_dilated_conv: true
-
 # For load_experiment_configs function - experiments as a list
 experiments:
-  - name: experiment_A
-    # Override global dropout rate
-    dropout_rate: 0.15
-    
+  - name: experiment_A    
     # Training-specific parameters
     batch_size: 8
-    
-    # Data augmentation settings
-    augmentation:
-      hf_prob: 0.5
-      cj_brightness: 0.2
     
     # Model parameters - these will be deep merged with global model_kwargs
     model_kwargs:
       depth: 5
 
   - name: experiment_B
-    # Override global learning rate
-    learning_rate: 0.0005
-    
     # Training-specific parameters  
-    batch_size: 8
-    
-    # Data augmentation settings
-    augmentation:
-      hf_prob: 0.3
-      cj_brightness: 0.1
-      smart_crop:
-        min_factor: 0.5
-        max_factor: 0.9
-    
+    batch_size: 8    
     # Model parameters - these will be deep merged with global model_kwargs
     model_kwargs:
       use_dilated_conv: true
