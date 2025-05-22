@@ -1,45 +1,110 @@
 global:
-  model_name: UNet
-  base_channels: 64 # This might be superseded by model_kwargs.base_channels
+  # Model configuration
+  model_name: unet
+  base_channels: 8
   dropout_rate: 0.1
-  use_dilated_conv: false # This might be superseded by model_kwargs.use_dilated_conv
+  use_dilated_conv: false
   learning_rate: 0.001
   
-  # Added for train_lightning.py example
-  data_folder: "./data/ShanghaiTech" # Example path
+  # Training configuration
+  data_folder: "./data/ShanghaiTech"
   dataset_part: "part_A"
   num_workers: 4
-  sigma: 5.0 # For density map generation
+  sigma: 5.0
   pretrained: true
   freeze_encoder: false
-  max_epochs: 10
-  target_input_width: 384
-  target_input_height: 384
+  max_epochs: 150
+  target_input_width: 224
+  target_input_height: 224
+  target_density_map_width: 224
+  target_density_map_height: 224
+  
+  
+  # Model-specific parameters that get passed to the model constructor
   model_kwargs:
-    base_channels: 64 # Specific to UNet-like models
-    depth: 4          # Specific to UNet-like models
-    # use_dilated_conv: false # Already in global, but can be part of model_kwargs if model expects it there
+    base_channels: 8
+    depth: 4
+    use_dilated_conv: false
 
+# Optional evaluation settings (merged into each experiment by load_experiment_configs)
+evaluation:
+  metrics: ["mae", "mse"]
+  save_predictions: true
+
+# Optional logging settings (merged into each experiment by load_experiment_configs)
+logging:
+  log_level: "INFO"
+  save_checkpoints: true
+
+# For get_model_config function - direct experiment access
 experiment_A:
-  base_channels: 128  # Overrides global if model directly uses it, or model_kwargs.base_channels overrides
-  dropout_rate: 0.15 # Overrides global
-  batch_size: 32 # This will be used by the script
+  # Override global dropout rate
+  dropout_rate: 0.15
+  
+  # Training-specific parameters
+  batch_size: 8
+  
+  # Data augmentation settings
   augmentation:
     hf_prob: 0.5
     cj_brightness: 0.2
-  model_kwargs: # Experiment specific model_kwargs override global ones
-    base_channels: 128 
+  
+  # Model parameters - these will be deep merged with global model_kwargs
+  model_kwargs:
     depth: 5
 
 experiment_B:
-  use_dilated_conv: true # Overrides global if model directly uses it
-  learning_rate: 0.0005 # Overrides global
-  batch_size: 16
+  # Override global learning rate
+  learning_rate: 0.0005
+  
+  # Training-specific parameters  
+  batch_size: 8
+  
+  # Data augmentation settings
   augmentation:
     hf_prob: 0.3
     cj_brightness: 0.1
     smart_crop:
       min_factor: 0.5
       max_factor: 0.9
+  
+  # Model parameters - these will be deep merged with global model_kwargs
   model_kwargs:
     use_dilated_conv: true
+
+# For load_experiment_configs function - experiments as a list
+experiments:
+  - name: experiment_A
+    # Override global dropout rate
+    dropout_rate: 0.15
+    
+    # Training-specific parameters
+    batch_size: 8
+    
+    # Data augmentation settings
+    augmentation:
+      hf_prob: 0.5
+      cj_brightness: 0.2
+    
+    # Model parameters - these will be deep merged with global model_kwargs
+    model_kwargs:
+      depth: 5
+
+  - name: experiment_B
+    # Override global learning rate
+    learning_rate: 0.0005
+    
+    # Training-specific parameters  
+    batch_size: 8
+    
+    # Data augmentation settings
+    augmentation:
+      hf_prob: 0.3
+      cj_brightness: 0.1
+      smart_crop:
+        min_factor: 0.5
+        max_factor: 0.9
+    
+    # Model parameters - these will be deep merged with global model_kwargs
+    model_kwargs:
+      use_dilated_conv: true

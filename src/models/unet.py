@@ -18,24 +18,37 @@ class UNet(nn.Module):
         super().__init__()
         assert depth >= 1, "Depth must be >= 1"
         assert num_filters > 0, "Base channels must be > 0"
-        # check that if you divide the input size by 2^depth, you get a positive integer
         custom_head = kwargs.get("custom_head", False)
+
+        self.output_resolution_ratio = kwargs.get("output_resolution_ratio", 1)
+        if self.output_resolution_ratio is not None:
+            assert isinstance(self.output_resolution_ratio, int) and self.output_resolution_ratio > 0, \
+                "self.output_resolution_ratio must be a positive integer"
+            assert (2**depth) % self.output_resolution_ratio == 0, \
+                f"Input size must be divisible by {self.output_resolution_ratio} for depth {depth}"
+
         self.depth = depth
         F = num_filters
         
-        self.inc = nn.Sequential(
-            DoubleConv(in_channels, F),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
+        # Initial convolution WITHOUT pooling
+        self.inc = DoubleConv(in_channels, F, **kwargs)
         
-        # build descending path
+        # Build descending path
         self.downs = nn.ModuleList()
         for i in range(depth):
             in_ch = F * (2**i)
             out_ch = F * (2**(i+1))
-            self.downs.append(Down(in_ch, out_ch))
+            self.downs.append(Down(in_ch, out_ch, **kwargs))
         
-        # build ascending path
+        # Bottleneck
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(F * (2**depth), F * (2**depth), kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(F * (2**depth), F * (2**depth), kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+        )
+
+        # Build ascending path
         self.ups = nn.ModuleList()
         for i in reversed(range(depth)):
             # at this up-step, we combine:
@@ -43,11 +56,12 @@ class UNet(nn.Module):
             #   - skip feature from encoder: F*2^i
             in_ch = F*(2**(i+1)) + F*(2**i)
             out_ch = F*(2**i)
-            self.ups.append(Up(in_ch, out_ch))
+            self.ups.append(Up(in_ch, out_ch, **kwargs))
+            
         if custom_head:
             self.outc = CustomOutConv(F, **kwargs)
         else:
-            # final 1x1 conv to map F channels -> 1
+            # Final 1x1 conv to map F channels -> 1
             self.outc = nn.Sequential(
                 nn.Conv2d(F, 1, kernel_size=1),
                 nn.ReLU(inplace=True),
@@ -55,15 +69,24 @@ class UNet(nn.Module):
 
     def forward(self, x, return_intermediates=False):
         # Encoder
-        x_enc = [self.inc(x)]  # x_enc[0] has shape [B, F,   H,   W]
+        x_enc = [self.inc(x)]  # x_enc[0] has shape [B, F, H, W]
+        
+        # Apply downsampling blocks
         for down in self.downs:
             x_enc.append(down(x_enc[-1]))
-        # x_enc[k] has shape [B, F*2^k, H/2^k, W/2^k],  k=0..depth
+        # Now x_enc has depth+1 elements:
+        # x_enc[0]: [B, F, H, W]
+        # x_enc[1]: [B, F*2, H/2, W/2]
+        # x_enc[2]: [B, F*4, H/4, W/4]
+        # ...
+        # x_enc[depth]: [B, F*2^depth, H/2^depth, W/2^depth]
         
-        # Decoder
+        # Bottleneck
+        x_dec = self.bottleneck(x_enc[-1])
+
+        # Decoder - pair each up block with the corresponding encoder feature
         intermediates = []
-        x_dec = x_enc[-1]  # bottom feature
-        for up, skip in zip(self.ups, reversed(x_enc[:-1])):
+        for i, (up, skip) in enumerate(zip(self.ups, reversed(x_enc[:-1]))):
             x_dec = up(x_dec, skip)
             if return_intermediates:
                 intermediates.append(x_dec)

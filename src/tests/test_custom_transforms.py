@@ -2,9 +2,7 @@ import unittest
 import numpy as np
 import torch
 import albumentations as A
-from albumentations.pytorch import ToTensorV2
-import random # For mocking
-
+from typing import Tuple
 # Attempt to import from src, assuming PYTHONPATH is set or tests are run from root
 try:
     from src.custom_transforms import SmartCropScale, build_transforms
@@ -20,8 +18,8 @@ except ImportError:
 def create_dummy_image(height=100, width=100, channels=3) -> np.ndarray:
     return np.random.randint(0, 256, (height, width, channels), dtype=np.uint8)
 
-def create_dummy_keypoints() -> list[list[float]]:
-    return [[10.0, 20.0], [50.0, 50.0], [90.0, 80.0]] # x, y format
+def create_dummy_keypoints() -> list[Tuple[float, float]]:
+    return [(10.0, 20.0), (50.0, 50.0), (90.0, 80.0)] # x, y format
 
 class TestSmartCropScale(unittest.TestCase):
 
@@ -163,7 +161,7 @@ class TestBuildTransforms(unittest.TestCase):
         
         # Mock random calls within SmartCropScale if needed for more deterministic output shape of keypoints
         # For now, check general properties
-        transformed_data = train_tf(image=self.dummy_image.copy(), keypoints=[list(kp) for kp in self.dummy_keypoints])
+        transformed_data = train_tf(image=self.dummy_image.copy(), keypoints=np.array([list(kp) for kp in self.dummy_keypoints]))
         
         img_tensor = transformed_data['image']
         kps_transformed = transformed_data['keypoints']
@@ -180,7 +178,7 @@ class TestBuildTransforms(unittest.TestCase):
     def test_val_transform_output(self):
         _, val_tf = build_transforms(self.aug_config_full, self.target_input_size)
         
-        transformed_data = val_tf(image=self.dummy_image.copy(), keypoints=[list(kp) for kp in self.dummy_keypoints])
+        transformed_data = val_tf(image=self.dummy_image.copy(), keypoints=np.array([list(kp) for kp in self.dummy_keypoints]))
         img_tensor = transformed_data['image']
         kps_transformed = transformed_data['keypoints']
 

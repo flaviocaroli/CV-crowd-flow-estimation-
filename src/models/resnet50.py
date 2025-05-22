@@ -59,7 +59,7 @@ class ResNetUNet(nn.Module):
     - performs (depth-1) ups to return to H/2
     - custom_head: if True, use CustomOutConv; else a 1×1 conv + ReLU
     """
-    def __init__(self, depth: int = 5, custom_head: bool = False, **kwargs):
+    def __init__(self, depth: int = 5, custom_head: bool = False, dropout: float = 0.0, **kwargs):
         super().__init__()
         assert 1 <= depth <= 5, "depth must be between 1 and 5"
         self.depth = depth
@@ -83,7 +83,7 @@ class ResNetUNet(nn.Module):
         for j in range(depth - 1, 0, -1):
             in_ch = self.channels[j]
             skip_ch = self.channels[j - 1]
-            self.ups.append(Up(in_ch + skip_ch, skip_ch))
+            self.ups.append(Up(in_ch + skip_ch, skip_ch, dropout=dropout))
 
         # Output head
         if custom_head:

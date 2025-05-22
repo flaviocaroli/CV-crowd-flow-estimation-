@@ -142,12 +142,7 @@ if __name__ == '__main__':
     num_workers = config.get('num_workers', 4)
     target_input_width = config.get('target_input_width', 384)
     target_input_height = config.get('target_input_height', 384)
-    # ShanghaiTechDataModule expects target_input_size as (Width, Height)
     target_input_size_datamodule = (target_input_width, target_input_height) 
-    # custom_transforms.build_transforms expects target_input_size as (Height, Width)
-    # This conversion is handled internally by ShanghaiTechDataModule if necessary,
-    # or build_transforms is called with (H,W) format.
-    # For this script, we prepare (W,H) for the DataModule.
 
     sigma = config.get('sigma', 5.0)
     augmentation_cfg = config.get('augmentation')
@@ -159,19 +154,6 @@ if __name__ == '__main__':
     freeze_encoder = config.get('freeze_encoder', False)
     model_specific_kwargs = config.get('model_kwargs', {})
 
-    # Instantiate DataModule
-    # Note: ShanghaiTechDataModule's __init__ takes target_input_size as (W,H).
-    # Internally, its setup method calls build_transforms.
-    # build_transforms expects target_input_size as (H,W).
-    # The DataModule should handle this conversion if build_transforms is not changed.
-    # As of the last update to ShanghaiTechDataModule, it passes its (W,H) target_input_size
-    # directly to build_transforms. This means build_transforms receives (W,H) and uses
-    # target_input_size[0] as height (i.e., W) and target_input_size[1] as width (i.e., H)
-    # for A.Resize, which is incorrect.
-    # This should be fixed in ShanghaiTechDataModule.setup by calling:
-    # build_transforms(..., target_input_size=(self.target_input_size[1], self.target_input_size[0]))
-    # However, this script correctly passes (W,H) to the DataModule as per its __init__ signature.
-    
     data_module = ShanghaiTechDataModule(
         data_folder=data_folder,
         part=part,
@@ -180,7 +162,6 @@ if __name__ == '__main__':
         target_input_size=target_input_size_datamodule, # (W,H)
         target_density_map_size=target_input_size_datamodule, # Assuming (W,H) and same as input
         sigma=sigma,
-        augmentation_config=augmentation_cfg
     )
 
     # Instantiate LitDensityEstimator

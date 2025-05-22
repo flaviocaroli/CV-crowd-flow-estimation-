@@ -1,13 +1,13 @@
 import torch.nn as nn
 import torchvision.models as models
 from .unet_comp import Up, CustomOutConv
-import torchsummary
+
 class VGG19BNBackbone(nn.Module):
     """
     U-Net for density regression using VGG19_bn encoder.
     Outputs [B,1,H/2,W/2] given [B,3,H,W].
     """
-    def __init__(self):
+    def __init__(self, dropout: float = 0.0):
         super().__init__()
         vgg = models.vgg19_bn(weights=models.VGG19_BN_Weights.IMAGENET1K_V1)
         feats = list(vgg.features.children())
@@ -23,20 +23,28 @@ class VGG19BNBackbone(nn.Module):
         # up2: 512 + 512 → 256
         # up3: 256 + 256 → 128
         # up4: 128 + 128 → 64   ← note skip from enc2 (128-ch) so output is half-res
-        self.up1   = Up(512+512, 512)
-        self.up2   = Up(512+512, 256)
-        self.up3   = Up(256+256, 128)
-        self.up4   = Up(128+128,  64)
+        self.up1   = Up(512+512, 512, dropout=dropout)
+        self.up2   = Up(512+512, 256, dropout=dropout)
+        self.up3   = Up(256+256, 128, dropout=dropout)
+        self.up4   = Up(128+128,  64, dropout=dropout)
         self.outc  = nn.Conv2d(64, 1, kernel_size=1)
         self.relu  = nn.ReLU(inplace=True)
 
     def forward(self, x, return_intermediates: bool = False):
         
         x1 = self.enc1(x)
-        x2 = self.pool1(x1); x2 = self.enc2(x2)
-        x3 = self.pool2(x2); x3 = self.enc3(x3)
-        x4 = self.pool3(x3); x4 = self.enc4(x4)
-        x5 = self.pool4(x4); x5 = self.enc5(x5)
+        x2 = self.pool1(x1)
+        x2 = self.enc2(x2)
+
+        x3 = self.pool2(x2)
+        x3 = self.enc3(x3)
+
+        x4 = self.pool3(x3)
+        x4 = self.enc4(x4)
+
+        x5 = self.pool4(x4)
+        x5 = self.enc5(x5)
+
         x6 = self.pool5(x5)
 
         d1 = self.up1(x6, x5)
@@ -57,7 +65,7 @@ class VGGUNet(nn.Module):
     - performs (depth-1) ups to return to H/2, matching VGG19BNBackbone structure
     - custom_head: if True, use CustomOutConv; else a 1×1 conv + ReLU
     """
-    def __init__(self, depth: int = 5, custom_head: bool = False, **kwargs):
+    def __init__(self, depth: int = 5, custom_head: bool = False, dropout: float = 0.0, **kwargs):
         super().__init__()
         assert 1 <= depth <= 5, "depth must be between 1 and 5"
         self.depth = depth
@@ -90,7 +98,7 @@ class VGGUNet(nn.Module):
             ch = self.channels[j]
             out_ch = self.channels[j - 1]
             # merge bottom or previous up output (ch) with skip feature (ch)
-            self.ups.append(Up(ch * 2, out_ch))
+            self.ups.append(Up(ch * 2, out_ch, dropout=dropout))
 
         # Output head
         if custom_head:
@@ -129,14 +137,13 @@ class VGGUNet(nn.Module):
 
 
 if __name__ == "__main__":
-    from torchsummary import summary
     import torch
 
 
     # Test the model at various depths
     for depth in range(1, 6):
         print(f"\nTesting VGGUNet with depth={depth}")
-        model = VGGUNet(depth=depth, custom_head=False)
+        model = VGGUNet(depth=depth, custom_head=False, dropout=0.0)
         print(model)
         x = torch.randn(1, 3, 256, 256)
         output = model(x, return_intermediates=True)
@@ -146,8 +153,8 @@ if __name__ == "__main__":
             print(f"Intermediate {i} shape: {inter.shape}")
 
     # Assert VGGUNet(depth=5) matches VGG19BNBackbone structure
-    vgg_old = VGG19BNBackbone()
-    vgg_new = VGGUNet(depth=4, custom_head=False)
+    vgg_old = VGG19BNBackbone(dropout=0.0)
+    vgg_new = VGGUNet(depth=4, custom_head=False, dropout=0.0)
     # Compare string representations (structure only, not weights)
     print("\nComparing VGG19BNBackbone and VGGUNet(depth=5) structures...")
     print("VGG19BNBackbone structure:")

@@ -6,3 +6,6 @@ pillow
 matplotlib
 pandas
 jupyter
+albumentations
+pytest
+yaml

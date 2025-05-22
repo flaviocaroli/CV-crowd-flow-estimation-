@@ -1,17 +1,16 @@
 import os
-from typing import Optional, Tuple, List, Dict # Added List and Dict
+from typing import Optional, Tuple # Added List and Dict
 
 import numpy as np
 import scipy.io
 import torch
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader, random_split, Subset # Added Subset
+from torch.utils.data import Dataset, DataLoader, Subset, random_split # Added Subset
 from torchvision import transforms
 import pytorch_lightning as pl
 import albumentations as A # Added
 
-from src.utils import create_density_map, show_samples_from_loaders, get_device
-from src.custom_transforms import build_transforms # Added
+from src.utils import create_density_map, get_device
 
 
 class ShanghaiTechDataset(Dataset):
@@ -110,7 +109,6 @@ class ShanghaiTechDataset(Dataset):
             augmented = self.transform(image=img_np, keypoints=points_list)
             img_transformed_tensor = augmented['image'] # Should be (C, H, W) tensor by ToTensorV2
             points_transformed = np.array(augmented['keypoints']) # Back to numpy (N,2) or (0,2)
-            
             # Albumentations ToTensorV2 output is (C, H, W)
             augmented_h, augmented_w = img_transformed_tensor.shape[1], img_transformed_tensor.shape[2]
             current_img_dims_for_scaling = (augmented_w, augmented_h)
@@ -124,6 +122,12 @@ class ShanghaiTechDataset(Dataset):
                                                     orig_wh=(orig_w, orig_h), 
                                                     to_wh=self.target_input_size)
             current_img_dims_for_scaling = self.target_input_size # (W,H)
+
+        if points_transformed.size > 0:
+            # Filter points within bounds
+            mask = (points_transformed[:, 0] >= 0) & (points_transformed[:, 0] < current_img_dims_for_scaling[0]) & \
+                (points_transformed[:, 1] >= 0) & (points_transformed[:, 1] < current_img_dims_for_scaling[1])
+            points_transformed = points_transformed[mask]
 
         # Scale points (which are relative to current_img_dims_for_scaling) to target_density_map_size
         scaled_for_density = self._scale_points(
@@ -149,7 +153,6 @@ class ShanghaiTechDataset(Dataset):
         return img_transformed_tensor, den_tensor
 
 
-# Removed get_default_transform function as it's replaced by Albumentations pipeline.
 
 class ShanghaiTechDataModule(pl.LightningDataModule):
     """
@@ -169,7 +172,6 @@ class ShanghaiTechDataModule(pl.LightningDataModule):
         device=None,
         target_input_size: Tuple[int, int] = (224, 224),  # Renamed, added type hint for clarity
         target_density_map_size: Tuple[int, int] = (224, 224),  # Renamed, added type hint
-        augmentation_config: Optional[Dict] = None, # Added
     ):
         super().__init__() # Added for pl.LightningDataModule best practices
         self.data_folder = data_folder
@@ -182,12 +184,8 @@ class ShanghaiTechDataModule(pl.LightningDataModule):
         self.return_count = return_count
         self.target_input_size = target_input_size
         self.target_density_map_size = target_density_map_size
-        self.augmentation_config = augmentation_config # Stored
         self.device = device or get_device()
         self.pin_memory = True if self.device != "mps" else False
-        # self.transform: Optional[A.Compose] = None # Removed
-        self.train_transform: Optional[A.Compose] = None # Added
-        self.val_transform: Optional[A.Compose] = None # Added
         self.allow_zero_length_dataloader_with_multiple_devices = False # Default from pl
         # self._log_hyperparams = True # This is often handled automatically or via save_hyperparameters()
         self.save_hyperparameters() # Recommended for PyTorch Lightning
@@ -200,60 +198,53 @@ class ShanghaiTechDataModule(pl.LightningDataModule):
         torch.cuda.manual_seed_all(seed)
 
     def setup(self, stage: Optional[str] = None): # Added type hint for stage
-        # Build transforms
-        aug_config = self.augmentation_config if self.augmentation_config is not None else {}
-        self.train_transform, self.val_transform = build_transforms(
-            config=aug_config,
-            target_input_size=self.target_input_size
+        # Dataset for training data with training transforms
+        dataset_for_train_split = ShanghaiTechDataset(
+            root=self.data_folder,
+            part=self.part,
+            split="train_data",
+            target_input_size=self.target_input_size,
+            sigma=self.sigma,
+            target_density_map_size=self.target_density_map_size,
+            return_count=self.return_count,
         )
 
-        if stage == "fit" or stage is None:
-            # Dataset for training data with training transforms
-            dataset_for_train_split = ShanghaiTechDataset(
-                root=self.data_folder,
-                part=self.part,
-                split="train_data",
-                transform=self.train_transform,
-                target_input_size=self.target_input_size,
-                sigma=self.sigma,
-                target_density_map_size=self.target_density_map_size,
-                return_count=self.return_count,
-            )
+        # Dataset for training data with validation transforms (for val split)
+        dataset_for_val_split = ShanghaiTechDataset(
+            root=self.data_folder,
+            part=self.part,
+            split="train_data", # Still from "train_data" directory
+            target_input_size=self.target_input_size,
+            sigma=self.sigma,
+            target_density_map_size=self.target_density_map_size,
+            return_count=self.return_count,
+        )
+        
+        
+        num_total_train_samples = len(dataset_for_train_split)
+        val_size = int(num_total_train_samples * self.validation_split)
+        train_size = num_total_train_samples - val_size
 
-            # Dataset for training data with validation transforms (for val split)
-            dataset_for_val_split = ShanghaiTechDataset(
-                root=self.data_folder,
-                part=self.part,
-                split="train_data", # Still from "train_data" directory
-                transform=self.val_transform, # Use validation transforms
-                target_input_size=self.target_input_size,
-                sigma=self.sigma,
-                target_density_map_size=self.target_density_map_size,
-                return_count=self.return_count,
-            )
+        train_subset, val_subset = random_split(
+            dataset_for_train_split, 
+            [train_size, val_size],
+            generator=torch.Generator().manual_seed(self.seed)
+        )
+        
+        # Create train dataset with training transforms using the indices from train_subset
+        self.train_dataset = Subset(dataset_for_train_split, train_subset.indices)
+        # Create val dataset with validation transforms using the indices from val_subset  
+        self.val_dataset = Subset(dataset_for_val_split, val_subset.indices)
             
-            num_total_train_samples = len(dataset_for_train_split)
-            val_size = int(num_total_train_samples * self.validation_split)
-            train_size = num_total_train_samples - val_size
-
-            indices = torch.randperm(num_total_train_samples, generator=torch.Generator().manual_seed(self.seed)).tolist()
-            train_indices = indices[:train_size]
-            val_indices = indices[train_size:]
-
-            self.train_dataset = Subset(dataset_for_train_split, train_indices)
-            self.val_dataset = Subset(dataset_for_val_split, val_indices)
-            
-        if stage == "test" or stage is None:
-            self.test_dataset = ShanghaiTechDataset(
-                root=self.data_folder,
-                part=self.part,
-                split="test_data",
-                transform=self.val_transform, # Use validation transforms for testing
-                target_input_size=self.target_input_size,
-                sigma=self.sigma,
-                target_density_map_size=self.target_density_map_size,
-                return_count=self.return_count,
-            )
+        self.test_dataset = ShanghaiTechDataset(
+            root=self.data_folder,
+            part=self.part,
+            split="test_data",
+            target_input_size=self.target_input_size,
+            sigma=self.sigma,
+            target_density_map_size=self.target_density_map_size,
+            return_count=self.return_count,
+        )
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
@@ -283,27 +274,3 @@ class ShanghaiTechDataModule(pl.LightningDataModule):
             shuffle=False,
             pin_memory=self.pin_memory,
         )
-
-if __name__ == "__main__":
-    data_folder = "./data/ShanghaiTech"
-
-    data_module = ShanghaiTechDataModule(
-        data_folder=data_folder,
-        part="part_A",
-        batch_size=3,  # for plotting
-        validation_split=0.1,
-        sigma=5,
-        target_density_map_size=(384, 384),
-        target_input_size=(384, 384),
-        augmentation_config={"hflip_prob": 0.5, "smart_crop": {"p": 0.5}}, # Example aug config
-        return_count=False,
-    )
-    
-    # Setup the datamodule (this will build transforms and datasets)
-    data_module.setup(stage="fit") # Or data_module.setup() for all
-    data_module.setup(stage="test")
-
-
-    # Show train, val, test samples
-    # To show samples, data_module.setup() must have been called.
-    show_samples_from_loaders(data_module)
