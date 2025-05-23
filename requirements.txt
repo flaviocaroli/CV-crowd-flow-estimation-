@@ -1,3 +1,4 @@
+pytorch_lightning
 torch
 torchvision
 numpy
@@ -6,3 +7,5 @@ pillow
 matplotlib
 pandas
 jupyter
+albumentations
+pytest

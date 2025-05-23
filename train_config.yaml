@@ -1,0 +1,52 @@
+global:
+  # Model configuration
+  model_name: unet
+  base_channels: 8
+  dropout_rate: 0.1
+  learning_rate: 0.00005
+  
+  # Training configuration
+  data_folder: "./data/ShanghaiTech"
+  dataset_part: "part_A"
+  num_workers: 4
+  sigma: 5.0
+  pretrained: true
+  freeze_encoder: false
+  max_epochs: 150
+  target_input_width: 224
+  target_input_height: 224
+  target_density_map_width: 224
+  target_density_map_height: 224
+  batch_size: 8
+  
+  
+  # Model-specific parameters that get passed to the model constructor
+  model_kwargs:
+    base_channels: 8
+
+# Optional evaluation settings (merged into each experiment by load_experiment_configs)
+evaluation:
+  metrics: ["mae", "mse"]
+  save_predictions: true
+
+# Optional logging settings (merged into each experiment by load_experiment_configs)
+logging:
+  log_level: "INFO"
+  save_checkpoints: true
+
+# For load_experiment_configs function - experiments as a list
+experiments:
+  - name: experiment_A    
+    # Training-specific parameters
+    batch_size: 8
+    
+    # Model parameters - these will be deep merged with global model_kwargs
+    model_kwargs:
+      depth: 5
+
+  - name: experiment_B
+    # Training-specific parameters  
+    batch_size: 8    
+    # Model parameters - these will be deep merged with global model_kwargs
+    model_kwargs:
+      use_dilated_conv: true

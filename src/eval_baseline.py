@@ -106,7 +106,8 @@ if __name__ == "__main__":
     device = get_device()
 
     # Load the data
-    data_module = ShanghaiTechDataModule(
+    # Part A
+    data_module_a = ShanghaiTechDataModule(
         data_folder="./data/ShanghaiTech",
         part="part_A",
         validation_split=0.1,
@@ -114,22 +115,54 @@ if __name__ == "__main__":
         return_count=False,
         batch_size=8,
         num_workers=4,
-        input_size=(384, 384),
-        density_map_size=(192, 192),
+        target_input_size=(224, 224),
+        target_density_map_size=(224, 224),
         device=device,
     )
-    data_module.setup()
+    data_module_a.setup()
 
-    # Get dataloaders
-    train_loader = data_module.train_dataloader()
-    val_loader = data_module.val_dataloader()
-    test_loader = data_module.test_dataloader()
-    n_pixels = 192 * 192
+    # Get dataloaders for Part A
+    train_loader_a = data_module_a.train_dataloader()
+    val_loader_a = data_module_a.val_dataloader()
+    test_loader_a = data_module_a.test_dataloader()
+    n_pixels = 224 * 224
+
+    print("\n=== PART A BASELINE RESULTS ===")
     print("\n=== Baseline Results on TRAIN ===")
-    evaluate_baselines(train_loader, device, n_pixels)
+    evaluate_baselines(train_loader_a, device, n_pixels)
 
     print("\n=== Baseline Results on VALIDATION ===")
-    evaluate_baselines(val_loader, device, n_pixels)
+    evaluate_baselines(val_loader_a, device, n_pixels)
 
     print("\n=== Baseline Results on TEST ===")
-    evaluate_baselines(test_loader, device, n_pixels)
+    evaluate_baselines(test_loader_a, device, n_pixels)
+
+    # Part B
+    data_module_b = ShanghaiTechDataModule(
+        data_folder="./data/ShanghaiTech",
+        part="part_B",
+        validation_split=0.1,
+        sigma=5,
+        return_count=False,
+        batch_size=8,
+        num_workers=4,
+        target_input_size=(224, 224),
+        target_density_map_size=(224, 224),
+        device=device,
+    )
+    data_module_b.setup()
+
+    # Get dataloaders for Part B
+    train_loader_b = data_module_b.train_dataloader()
+    val_loader_b = data_module_b.val_dataloader()
+    test_loader_b = data_module_b.test_dataloader()
+
+    print("\n=== PART B BASELINE RESULTS ===")
+    print("\n=== Baseline Results on TRAIN ===")
+    evaluate_baselines(train_loader_b, device, n_pixels)
+
+    print("\n=== Baseline Results on VALIDATION ===")
+    evaluate_baselines(val_loader_b, device, n_pixels)
+
+    print("\n=== Baseline Results on TEST ===")
+    evaluate_baselines(test_loader_b, device, n_pixels)
