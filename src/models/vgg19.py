@@ -143,7 +143,7 @@ class VGGUNet(nn.Module):
         else:
             self.outc = nn.Sequential(
                 nn.Conv2d(self.decoder_channels[0], 1, kernel_size=1),
-                nn.LeakyReLU(inplace=True),
+                nn.ReLU(inplace=True),
             )
 
     def forward(self, x, return_intermediates=False):

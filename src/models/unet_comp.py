@@ -32,7 +32,7 @@ class DoubleConv(nn.Module):
                 dilation=dilation_l1,
             ),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(inplace=True),
+            nn.ReLU(inplace=True),
         ]
         if dropout > 0.0:
             layers.append(nn.Dropout2d(dropout))
@@ -47,7 +47,7 @@ class DoubleConv(nn.Module):
                 dilation=dilation_l2,
             ),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(inplace=True),
+            nn.ReLU(inplace=True),
         ]
         if dropout > 0.0:
             layers.append(nn.Dropout2d(dropout))
@@ -128,11 +128,11 @@ class CustomOutConv(nn.Module):
         if dropout_p > 0.0:
             layers.append(nn.Dropout2d(dropout_p))
         layers.append(nn.BatchNorm2d(F // 2))
-        layers.append(nn.LeakyReLU(inplace=True))
+        layers.append(nn.ReLU(inplace=True))
 
         # second conv to single channel
         layers.append(nn.Conv2d(F // 2, 1, kernel_size=1))
-        layers.append(nn.LeakyReLU(inplace=True))
+        layers.append(nn.ReLU(inplace=True))
 
         # optional global average pooling
         if gap:
