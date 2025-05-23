@@ -11,7 +11,7 @@ from src.utils import get_device, compute_receptive_field
 
 def main():
     # Initialize Weights & Biases (W&B)
-    wandb_project = "density_estimation_custom_head_init"
+    wandb_project = "recover"
     pl.seed_everything(42)
     device = get_device()
 
@@ -34,13 +34,13 @@ def main():
     configs = [
         #{"model":"unet","depth": 2, "num_filters": 64, "custom_head": True},
         #{"model":"unet","depth": 2, "num_filters": 32, "custom_head": True},
-        {"label":"ch", "model":"unet","depth": 2, "num_filters": 16, "custom_head": True},
-        {"model":"unet","depth": 2, "num_filters": 16, "custom_head": False},
-        {"label":"5x5_", "model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5},
-        {"label":"dropout_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_dropout": 0.1},
-        {"label":"gap_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_gap": True},
-        {"label":"dropout_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_dropout": 0.1},
-        {"label":"gap_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_gap": True},
+        # {"label":"ch", "model":"unet","depth": 2, "num_filters": 16, "custom_head": True},
+        # {"model":"unet","depth": 2, "num_filters": 16, "custom_head": False},
+        # {"label":"5x5_", "model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5},
+        # {"label":"dropout_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_dropout": 0.1},
+        # {"label":"gap_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_gap": True},
+        # {"label":"dropout_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_dropout": 0.1},
+        # {"label":"gap_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_gap": True},
         #{"model":"unet","depth": 2, "num_filters": 128, "custom_head": True},
         #{"model":"unet","depth": 4, "num_filters": 32, "custom_head": True},
         #{"model":"unet","depth": 3, "num_filters": 64, "custom_head": True},
@@ -62,6 +62,11 @@ def main():
         {"model":"vgg19_bn","depth": 4, "num_filters": "_stock", "freeze_encoder":True},
         {"model":"vgg19_bn","depth": 3, "num_filters": "_stock", "freeze_encoder":True},
         {"model":"vgg19_bn","depth": 2, "num_filters": "_stock", "freeze_encoder":True},
+
+        {"model":"unet","depth": 2, "num_filters": 128},
+        {"model":"unet","depth": 4, "num_filters": 32,},
+        {"model":"unet","depth": 3, "num_filters": 64,},
+        {"model":"unet","depth": 3, "num_filters": 32,},
     ]
 
     def make_name(cfg):
