@@ -56,7 +56,7 @@ def main():
     def make_name(cfg):
         label = cfg.get('label')
         if label:
-            return f"{label}_{cfg['model']}_depth{cfg['depth']}_nf{cfg['num_filters']}"
+            return f"{label}_{cfg['model']}_depth{cfg['depth']}_split_{cfg['split']}"
         return f"{cfg['model']}_depth{cfg['depth']}_split_{cfg['split']}"
 
     for cfg in configs:
@@ -104,6 +104,7 @@ def main():
             # Log model architecture and receptive field to W&B
             wandb_logger.experiment.config.update({"model_architecture": str(model)})
             wandb_logger.experiment.config.update({"receptive_field": compute_receptive_field(model)})
+            wandb_logger.experiment.config.update({"cfg": cfg})
 
             # Initialize Trainers
             trainer = Trainer(
