@@ -24,7 +24,7 @@ from src.models import get_model
 from src.utils import plot_dec_steps_batch
 
 class MSEWithNegPenaltyLoss(nn.Module):
-    def __init__(self, neg_penalty_weight=10.0):
+    def __init__(self, neg_penalty_weight=5.0):
         super().__init__()
         self.neg_penalty_weight = neg_penalty_weight
 
