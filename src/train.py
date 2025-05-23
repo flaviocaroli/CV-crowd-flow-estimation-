@@ -50,41 +50,41 @@ def main() -> None:
     # Generate all configurations
     configs = []
     
-    # # Model combinations
-    # for model in ["vgg", "resnet"]:
-    #     for part in ["part_A", "part_B"]:
-    #         for depth in range(2, 5):
-    #                 config = base_config.copy()
-    #                 config["name"] = f"experiment_{model}_{part}_d{depth}"
-    #                 config["model_name"] = model
-    #                 config["dataset_part"] = part
-    #                 config["model_kwargs"] = {
-    #                     "base_channels": 32,
-    #                     "depth": depth,
-    #                     "stride_l1": 1,
-    #                     "stride_l2": 1,
-    #                     "dilation_l1": 1,
-    #                     "dilation_l2": 1,
-    #                     "skip_skip": True,
-    #                 }
-    #                 configs.append(config)
+    # Model combinations
+    for model in ["vgg", "resnet"]:
+        for part in ["part_A", "part_B"]:
+            for depth in range(2, 5):
+                    config = base_config.copy()
+                    config["name"] = f"experiment_{model}_{part}_d{depth}"
+                    config["model_name"] = model
+                    config["dataset_part"] = part
+                    config["model_kwargs"] = {
+                        "base_channels": 32,
+                        "depth": depth,
+                        "stride_l1": 1,
+                        "stride_l2": 1,
+                        "dilation_l1": 1,
+                        "dilation_l2": 1,
+                        "skip_skip": True,
+                    }
+                    configs.append(config)
     
-    # # Parameter sweep
-    for part in ["part_A", "part_B"]:
-        for depth in range(2, 4):
-            for dilation in reversed(range(1, 4)):
-                config = base_config.copy()
-                config["name"] = f"experiment_{part}_d{depth}_dil{dilation}"
-                config["dataset_part"] = part
-                config["model_kwargs"] = {
-                    "base_channels": 32,
-                    "depth": depth,
-                    "dilation_l1": dilation,
-                    "dilation_l2": dilation,
-                    "depth_dilation": 2,
-                    "skip_skip": True,
-                }
-                configs.append(config)
+    # # # Parameter sweep
+    # for part in ["part_A", "part_B"]:
+    #     for depth in range(2, 4):
+    #         for dilation in reversed(range(1, 4)):
+    #             config = base_config.copy()
+    #             config["name"] = f"experiment_{part}_d{depth}_dil{dilation}"
+    #             config["dataset_part"] = part
+    #             config["model_kwargs"] = {
+    #                 "base_channels": 32,
+    #                 "depth": depth,
+    #                 "dilation_l1": dilation,
+    #                 "dilation_l2": dilation,
+    #                 "depth_dilation": 2,
+    #                 "skip_skip": True,
+    #             }
+    #             configs.append(config)
 
     print(f"Total experiments: {len(configs)}")
     
