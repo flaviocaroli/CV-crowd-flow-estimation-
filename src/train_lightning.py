@@ -37,7 +37,6 @@ class MSEWithNegPenaltyLoss(nn.Module):
         
         # Total loss = MSE + weighted negative penalty
         total_loss = mse_loss + self.neg_penalty_weight * neg_penalty
-        print(f"mse_loss: {mse_loss.item()}, neg_penalty: {neg_penalty.item()}")
         return total_loss
 
 class LitDensityEstimator(pl.LightningModule):
