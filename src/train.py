@@ -69,7 +69,7 @@ def main():
             wandb_logger = WandbLogger(
                 project=wandb_project,
                 name=name,
-                tags=["unet", f"depth_{cfg['depth']}", f"nf_{cfg['num_filters']}"],
+                tags=[f"model_{cfg["model"]}", f"depth_{cfg['depth']}", f"split_{cfg['split']}"],
             )
 
             # Checkpoint callback
