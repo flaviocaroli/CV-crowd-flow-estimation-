@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", message="Clipping input data to the valid range for imshow")
 
 def main() -> None:
-    wandb_project = "density-estimation"
+    wandb_project = "density-estimation-test"
     pl.seed_everything(42)
     
     # Check available GPUs
@@ -36,8 +36,8 @@ def main() -> None:
         "max_epochs": 200,
         "target_input_width": 384,
         "target_input_height": 384,
-        "target_density_map_width": 384,
-        "target_density_map_height": 384,
+        "target_density_map_width": 192,
+        "target_density_map_height": 192,
         "batch_size": 8,
         "learning_rate": 0.00005,
         "validation_split": 0.1,
@@ -65,24 +65,26 @@ def main() -> None:
                         "stride_l2": 1,
                         "dilation_l1": 1,
                         "dilation_l2": 1,
+                        "skip_skip": True,
                     }
                     configs.append(config)
     
     # # Parameter sweep
-    # for part in ["part_A", "part_B"]:
-    #     for depth in range(2, 4):
-    #         for dilation in range(1, 4):
-    #             config = base_config.copy()
-    #             config["name"] = f"experiment_{part}_d{depth}_dil{dilation}"
-    #             config["dataset_part"] = part
-    #             config["model_kwargs"] = {
-    #                 "base_channels": 32,
-    #                 "depth": depth,
-    #                 "dilation_l1": dilation,
-    #                 "dilation_l2": dilation,
-    #                 "depth_dilation": 2,
-    #             }
-    #             configs.append(config)
+    for part in ["part_A", "part_B"]:
+        for depth in range(2, 4):
+            for dilation in range(1, 4):
+                config = base_config.copy()
+                config["name"] = f"experiment_{part}_d{depth}_dil{dilation}"
+                config["dataset_part"] = part
+                config["model_kwargs"] = {
+                    "base_channels": 32,
+                    "depth": depth,
+                    "dilation_l1": dilation,
+                    "dilation_l2": dilation,
+                    "depth_dilation": 2,
+                    "skip_skip": True,
+                }
+                configs.append(config)
 
     print(f"Total experiments: {len(configs)}")
     
