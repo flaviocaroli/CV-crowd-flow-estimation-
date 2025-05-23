@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torchvision.models as models
-from .unet_comp import DoubleConv, Down, Up, CustomOutConv
+from .unet_comp import DoubleConv, Up, CustomOutConv
 
 
 class ResNetUNet(nn.Module):
@@ -57,7 +57,7 @@ class ResNetUNet(nn.Module):
         else:
             self.outc = nn.Sequential(
                 nn.Conv2d(self.channels[0], 1, kernel_size=1),
-                nn.ReLU(inplace=True),
+                nn.LeakyReLU(inplace=True),
             )
 
     def forward(self, x, return_intermediates=False):

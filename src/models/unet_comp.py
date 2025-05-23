@@ -27,7 +27,7 @@ class DoubleConv(nn.Module):
                 dilation=dilation_l1,
             ),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
         ]
         if dropout > 0.0:
             layers.append(nn.Dropout2d(dropout))
@@ -42,7 +42,7 @@ class DoubleConv(nn.Module):
                 dilation=dilation_l2,
             ),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
         ]
         if dropout > 0.0:
             layers.append(nn.Dropout2d(dropout))

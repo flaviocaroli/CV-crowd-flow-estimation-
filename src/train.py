@@ -1,4 +1,3 @@
-import argparse
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
@@ -55,7 +54,6 @@ def main() -> None:
     for model in ["vgg", "resnet"]:
         for part in ["part_A", "part_B"]:
             for depth in range(2, 4):
-                for augment in [True, False]:
                     config = base_config.copy()
                     config["name"] = f"experiment_{model}_{part}_d{depth}"
                     config["model_name"] = model
