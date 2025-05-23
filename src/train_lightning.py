@@ -23,6 +23,21 @@ from src.metrics import (
 from src.models import get_model
 from src.utils import plot_dec_steps_batch
 
+class MSEWithNegPenaltyLoss(nn.Module):
+    def __init__(self, neg_penalty_weight=10.0):
+        super().__init__()
+        self.neg_penalty_weight = neg_penalty_weight
+
+    def forward(self, preds, targets):
+        # MSE sum loss
+        mse_loss = torch.sum((preds - targets) ** 2)
+        
+        # Negative predictions penalty (sum of negative parts)
+        neg_penalty = torch.sum(torch.relu(-preds))  # sum of abs of negative values
+        
+        # Total loss = MSE + weighted negative penalty
+        total_loss = mse_loss + self.neg_penalty_weight * neg_penalty
+        return total_loss
 
 class LitDensityEstimator(pl.LightningModule):
     def __init__(
@@ -43,7 +58,7 @@ class LitDensityEstimator(pl.LightningModule):
             freeze_encoder=freeze_encoder,
             **model_kwargs
         )
-        self.criterion = nn.MSELoss()
+        self.criterion = MSEWithNegPenaltyLoss(neg_penalty_weight=10.0)
         self.model.to(device)
 
     def forward(self, x, return_intermediates: bool = False):
