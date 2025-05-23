@@ -19,13 +19,9 @@ class UNet(nn.Module):
         assert depth >= 1, "Depth must be >= 1"
         assert num_filters > 0, "Base channels must be > 0"
         custom_head = kwargs.get("custom_head", False)
+        
+        self.depth_dilation: int = kwargs.get("depth_dilation", 1)
 
-        self.output_resolution_ratio = kwargs.get("output_resolution_ratio", 1)
-        if self.output_resolution_ratio is not None:
-            assert isinstance(self.output_resolution_ratio, int) and self.output_resolution_ratio > 0, \
-                "self.output_resolution_ratio must be a positive integer"
-            assert (2**depth) % self.output_resolution_ratio == 0, \
-                f"Input size must be divisible by {self.output_resolution_ratio} for depth {depth}"
 
         self.depth = depth
         F = num_filters
@@ -38,7 +34,11 @@ class UNet(nn.Module):
         for i in range(depth):
             in_ch = F * (2**i)
             out_ch = F * (2**(i+1))
-            self.downs.append(Down(in_ch, out_ch, **kwargs))
+            if i > self.depth_dilation:
+                updated_kwargs = kwargs.copy()
+                updated_kwargs.pop("dilation_l1")
+                updated_kwargs.pop("dilation_l2")
+                self.downs.append(Down(in_ch, out_ch, **updated_kwargs))
         
         # Bottleneck
         self.bottleneck = DoubleConv(F*(2**depth), F*(2**depth), **kwargs)

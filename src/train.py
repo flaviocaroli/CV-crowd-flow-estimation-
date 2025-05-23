@@ -53,38 +53,38 @@ def main() -> None:
     # Model combinations
     for model in ["vgg", "resnet"]:
         for part in ["part_A", "part_B"]:
-            for depth in range(2, 4):
-                    config = base_config.copy()
-                    config["name"] = f"experiment_{model}_{part}_d{depth}"
-                    config["model_name"] = model
-                    config["dataset_part"] = part
-                    config["model_kwargs"] = {
-                        "base_channels": 32,
-                        "depth": depth,
-                        "stride_l1": 1,
-                        "stride_l2": 1,
-                        "dilation_l1": 1,
-                        "dilation_l2": 1,
-                    }
-                    configs.append(config)
+            for depth in range(2, 5):
+                    for freeze in [True, False]:
+                        config = base_config.copy()
+                        config["name"] = f"experiment_{model}_{part}_d{depth}"
+                        config["model_name"] = model
+                        config["dataset_part"] = part
+                        config["freeze_encoder"] = freeze
+                        config["model_kwargs"] = {
+                            "base_channels": 32,
+                            "depth": depth,
+                            "stride_l1": 1,
+                            "stride_l2": 1,
+                            "dilation_l1": 1,
+                            "dilation_l2": 1,
+                            "freeze_encoder": freeze,
+                        }
+                        configs.append(config)
     
     # Parameter sweep
     for part in ["part_A", "part_B"]:
         for depth in range(2, 4):
-            for stride in range(1, 4):
-                for dilation in range(1, 4):
-                    config = base_config.copy()
-                    config["name"] = f"experiment_{part}_d{depth}_s{stride}_dil{dilation}"
-                    config["dataset_part"] = part
-                    config["model_kwargs"] = {
-                        "base_channels": 32,
-                        "depth": depth,
-                        "stride_l1": stride,
-                        "stride_l2": stride,
-                        "dilation_l1": dilation,
-                        "dilation_l2": dilation,
-                    }
-                    configs.append(config)
+            for dilation in range(1, 4):
+                config = base_config.copy()
+                config["name"] = f"experiment_{part}_d{depth}_dil{dilation}"
+                config["dataset_part"] = part
+                config["model_kwargs"] = {
+                    "base_channels": 32,
+                    "depth": depth,
+                    "dilation_l1": dilation,
+                    "dilation_l2": dilation,
+                }
+                configs.append(config)
 
     print(f"Total experiments: {len(configs)}")
     
@@ -139,7 +139,7 @@ def main() -> None:
             lr_monitor = LearningRateMonitor(logging_interval="step")
             early_stop_callback = EarlyStopping(
                 monitor="val/mse",
-                patience=10,
+                patience=20,
                 mode="min",
                 verbose=True,
                 min_delta=1e-5,
@@ -147,7 +147,7 @@ def main() -> None:
 
             model = LitDensityEstimator(
                 model_name=cfg.get("model_name", "unet"),
-                lr=cfg.get("learning_rate", 5e-4),
+                lr=cfg.get("learning_rate", 5e-3),
                 pretrained=cfg.get("pretrained", True),
                 freeze_encoder=cfg.get("freeze_encoder", False),
                 device=device,
@@ -162,7 +162,7 @@ def main() -> None:
 
             trainer = Trainer(
                 max_epochs=cfg.get("max_epochs", 200),
-                log_every_n_steps=50,
+                log_every_n_steps=25,
                 default_root_dir="./outputs",
                 logger=wandb_logger,
                 callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],
