@@ -31,49 +31,33 @@ def main():
     data_module.setup()
 
     # Experiment configurations
-    configs = [
-        #{"model":"unet","depth": 2, "num_filters": 64, "custom_head": True},
-        #{"model":"unet","depth": 2, "num_filters": 32, "custom_head": True},
-        # {"label":"ch", "model":"unet","depth": 2, "num_filters": 16, "custom_head": True},
-        # {"model":"unet","depth": 2, "num_filters": 16, "custom_head": False},
-        # {"label":"5x5_", "model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5},
-        # {"label":"dropout_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_dropout": 0.1},
-        # {"label":"gap_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_gap": True},
-        # {"label":"dropout_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_dropout": 0.1},
-        # {"label":"gap_5x5_","model":"unet","depth": 2, "num_filters": 32, "custom_head": True, "custom_head_kernel_size": 5, "custom_head_gap": True},
-        #{"model":"unet","depth": 2, "num_filters": 128, "custom_head": True},
-        #{"model":"unet","depth": 4, "num_filters": 32, "custom_head": True},
-        #{"model":"unet","depth": 3, "num_filters": 64, "custom_head": True},
-        #{"model":"unet","depth": 3, "num_filters": 32, "custom_head": True},
-        
+    configs = [        
 
         # ResNet50
-        {"model":"resnet50","depth": 4, "num_filters": "_stock"},
-        {"model":"resnet50","depth": 3, "num_filters": "_stock"},
-        {"model":"resnet50","depth": 2, "num_filters": "_stock"},
-        {"model":"resnet50","depth": 4, "num_filters": "_stock", "freeze_encoder":True},
-        {"model":"resnet50","depth": 3, "num_filters": "_stock", "freeze_encoder":True},
-        {"model":"resnet50","depth": 2, "num_filters": "_stock", "freeze_encoder":True},
+        #{"model":"resnet50","depth": 3, "split":"A"},
+        #{"model":"resnet50","depth": 2, "split":"A"},
+        #{"model":"resnet50","depth": 4, "split":"A"},
+        ### VGG19
+        #{"model":"vgg19_bn","depth": 4, "split":"A"},
+        #{"model":"vgg19_bn","depth": 3, "split":"A"},
+        #{"model":"vgg19_bn","depth": 2, "split":"A"},
+
+                # ResNet50
+        {"model":"resnet50","depth": 3, "split":"B"},
+        {"model":"resnet50","depth": 2, "split":"B"},
+        {"model":"resnet50","depth": 4, "split":"B"},
 
         ## VGG19
-        {"model":"vgg19_bn","depth": 4, "num_filters": "_stock"},
-        {"model":"vgg19_bn","depth": 3, "num_filters": "_stock"},
-        {"model":"vgg19_bn","depth": 2, "num_filters": "_stock"},
-        {"model":"vgg19_bn","depth": 4, "num_filters": "_stock", "freeze_encoder":True},
-        {"model":"vgg19_bn","depth": 3, "num_filters": "_stock", "freeze_encoder":True},
-        {"model":"vgg19_bn","depth": 2, "num_filters": "_stock", "freeze_encoder":True},
-
-        {"model":"unet","depth": 2, "num_filters": 128},
-        {"model":"unet","depth": 4, "num_filters": 32,},
-        {"model":"unet","depth": 3, "num_filters": 64,},
-        {"model":"unet","depth": 3, "num_filters": 32,},
+        {"model":"vgg19_bn","depth": 4, "split":"B"},
+        {"model":"vgg19_bn","depth": 3, "split":"B"},
+        {"model":"vgg19_bn","depth": 2, "split":"B"},
     ]
 
     def make_name(cfg):
         label = cfg.get('label')
         if label:
             return f"{label}_{cfg['model']}_depth{cfg['depth']}_nf{cfg['num_filters']}"
-        return f"{cfg['model']}_depth{cfg['depth']}_nf{cfg['num_filters']}"
+        return f"{cfg['model']}_depth{cfg['depth']}_split_{cfg['split']}"
 
     for cfg in configs:
         name = make_name(cfg)
@@ -113,7 +97,6 @@ def main():
             model = LitDensityEstimator(
                 model_name=cfg["model"],
                 lr=5e-4,
-                freeze_encoder=cfg.get("freeze_encoder", False),
                 device=device,
                 **cfg,
             )
