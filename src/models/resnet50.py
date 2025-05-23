@@ -16,6 +16,7 @@ class ResNetUNet(nn.Module):
         super().__init__()
         assert 1 <= depth <= 4, "depth must be between 1 and 4 for ResNet layers"
         self.depth = depth
+        self.half_res = kwargs.get("half_res", False)
         
         # Load pretrained ResNet50
         resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)

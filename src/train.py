@@ -166,7 +166,7 @@ def main() -> None:
                 default_root_dir="./outputs",
                 logger=wandb_logger,
                 callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],
-                accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                accelerator=device,
                 devices=[gpu_id] if torch.cuda.is_available() else 1,
             )
 
