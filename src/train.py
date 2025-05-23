@@ -20,14 +20,13 @@ def main():
     configs = [        
 
         # ResNet50
-        #{"model":"resnet50","depth": 5, "split":"A"},
-        #{"model":"resnet50","depth": 4, "split":"A"},
-        #{"model":"resnet50","depth": 3, "split":"A"},
-        #{"model":"resnet50","depth": 2, "split":"A"},
+        {"model":"resnet50","depth": 4, "split":"A"},
+        {"model":"resnet50","depth": 3, "split":"A"},
+        {"model":"resnet50","depth": 2, "split":"A"},
         ### VGG19
-        #{"model":"vgg19_bn","depth": 4, "split":"A"},
-        #{"model":"vgg19_bn","depth": 3, "split":"A"},
-        #{"model":"vgg19_bn","depth": 2, "split":"A"},
+        {"model":"vgg19_bn","depth": 4, "split":"A"},
+        {"model":"vgg19_bn","depth": 3, "split":"A"},
+        {"model":"vgg19_bn","depth": 2, "split":"A"},
 
         # ResNet50
         {"model":"resnet50","depth": 4, "split":"B"},
@@ -49,7 +48,6 @@ def main():
     for cfg in configs:
         name = make_name(cfg)
         try:
-
                         # Prepare the data
             data_module = ShanghaiTechDataModule(
                 data_folder="./data/ShanghaiTech",  # adjust as needed

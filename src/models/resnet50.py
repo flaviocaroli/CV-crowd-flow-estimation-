@@ -28,7 +28,7 @@ class ResNetUNet(nn.Module):
         self.layer4 = resnet.layer4
 
         # Channel sizes for each encoder output
-        self.channels = [64, 256, 512, 1024, 2048]
+        self.channels = [64, 256, 512, 1024, 2048] # [64, 256, 512, 1024, 2048]
 
         # Build decoder: exactly (depth-1) Ups, matching skips
         self.ups = nn.ModuleList()
@@ -63,7 +63,7 @@ class ResNetUNet(nn.Module):
         # Decoder path: (depth-1) ups, skipping conv1
         skips = features[:-1]
         for up, skip in zip(self.ups, reversed(skips)):
-            x_dec = up(x_dec, skip)
+            x_dec = up(x_dec, skip) # [B,skip_ch,H/2^j,W/2^j] 
             if return_intermediates:
                 intermediates.append(x_dec)
 

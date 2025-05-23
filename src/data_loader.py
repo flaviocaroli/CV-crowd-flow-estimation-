@@ -141,8 +141,8 @@ class ShanghaiTechDataModule(pl.LightningDataModule):
         batch_size=8,  # Made configurable
         num_workers=4,  # Made configurable
         device=None,  # Added parameter
-        input_size=(224, 224),  # Added parameter
-        density_map_size=(224, 224),  # Added parameter
+        input_size=(384, 384),  # Added parameter
+        density_map_size=(384, 384),  # Added parameter
     ):
         self.data_folder = data_folder
         self.part = part

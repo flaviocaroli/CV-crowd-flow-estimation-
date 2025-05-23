@@ -37,8 +37,8 @@ class Down(nn.Module):
                  **kwargs):
         super().__init__()
         self.down = nn.Sequential(
-            nn.MaxPool2d(2),
-            DoubleConv(in_ch, out_ch, **kwargs)
+            nn.MaxPool2d(2), # downsample by 2
+            DoubleConv(in_ch, out_ch, **kwargs) # pass through double conv 
         )
 
     def forward(self, x):
@@ -59,12 +59,14 @@ class Up(nn.Module):
         # use bilinear upsampling
         self.in_ch = in_ch
         self.out_ch = out_ch
-        self.up = nn.Upsample(scale_factor=2, mode=mode, align_corners=False)
-        self.conv = DoubleConv(in_ch, out_ch)
+        self.up = nn.Upsample(scale_factor=2, mode=mode, align_corners=False) # upsample by 2
+        self.conv = DoubleConv(in_ch, out_ch) # pass through double conv
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
-        # pad if necessary
+        # pad if necessary. Can happen if the input size is not divisible by 2^depth e.g
+        # e.g. if no padding in the conv layers
+        # IN OUR CASE, THIS SHOULD NOT HAPPEN
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
         if diffY or diffX:
