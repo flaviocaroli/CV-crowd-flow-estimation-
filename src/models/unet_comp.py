@@ -15,13 +15,18 @@ class DoubleConv(nn.Module):
         stride_l2:int = kwargs.get("stride_l2", 1)
         dilation_l1:int = kwargs.get("dilation_l1", 1)
         dilation_l2:int = kwargs.get("dilation_l2", 1)
+        dilated_kernel_size_l1 = 3 + (3 - 1) * (dilation_l1 - 1)
+        dilated_kernel_size_l2 = 3 + (3 - 1) * (dilation_l2 - 1)
+        padding_l1 = (dilated_kernel_size_l1 - 1) // 2
+        padding_l2 = (dilated_kernel_size_l2 - 1) // 2
+
         # first conv block
         layers = [
             nn.Conv2d(
                 in_ch,
                 out_ch,
                 kernel_size=3,
-                padding=1,
+                padding=1 if dilation_l1 == 1 else padding_l1,
                 bias=False,
                 stride=stride_l1,
                 dilation=dilation_l1,
@@ -36,7 +41,7 @@ class DoubleConv(nn.Module):
                 out_ch,
                 out_ch,
                 kernel_size=3,
-                padding=1,
+                padding=1 if dilation_l1 == 1 else padding_l2,
                 bias=False,
                 stride=stride_l2,
                 dilation=dilation_l2,
