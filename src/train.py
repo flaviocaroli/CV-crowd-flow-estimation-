@@ -83,6 +83,7 @@ def main() -> None:
                     "depth": depth,
                     "dilation_l1": dilation,
                     "dilation_l2": dilation,
+                    "depth_dilation": 2,
                 }
                 configs.append(config)
 
