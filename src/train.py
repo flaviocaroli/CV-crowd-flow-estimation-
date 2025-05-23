@@ -15,37 +15,24 @@ def main():
     pl.seed_everything(42)
     device = get_device()
 
-    # Prepare the data
-    data_module = ShanghaiTechDataModule(
-        data_folder="./data/ShanghaiTech",  # adjust as needed
-        part="part_A",
-        validation_split=0.1,
-        sigma=5,
-        return_count=False,
-        batch_size=8,
-        num_workers=4,
-        input_size=(384, 384),
-        density_map_size=(192, 192),
-        device=device,
-    )
-    data_module.setup()
 
     # Experiment configurations
     configs = [        
 
         # ResNet50
+        #{"model":"resnet50","depth": 5, "split":"A"},
+        #{"model":"resnet50","depth": 4, "split":"A"},
         #{"model":"resnet50","depth": 3, "split":"A"},
         #{"model":"resnet50","depth": 2, "split":"A"},
-        #{"model":"resnet50","depth": 4, "split":"A"},
         ### VGG19
         #{"model":"vgg19_bn","depth": 4, "split":"A"},
         #{"model":"vgg19_bn","depth": 3, "split":"A"},
         #{"model":"vgg19_bn","depth": 2, "split":"A"},
 
-                # ResNet50
+        # ResNet50
+        {"model":"resnet50","depth": 4, "split":"B"},
         {"model":"resnet50","depth": 3, "split":"B"},
         {"model":"resnet50","depth": 2, "split":"B"},
-        {"model":"resnet50","depth": 4, "split":"B"},
 
         ## VGG19
         {"model":"vgg19_bn","depth": 4, "split":"B"},
@@ -62,6 +49,22 @@ def main():
     for cfg in configs:
         name = make_name(cfg)
         try:
+
+                        # Prepare the data
+            data_module = ShanghaiTechDataModule(
+                data_folder="./data/ShanghaiTech",  # adjust as needed
+                part=f"part_{cfg['split']}",
+                validation_split=0.1,
+                sigma=5,
+                return_count=False,
+                batch_size=8,
+                num_workers=4,
+                input_size=(384, 384),
+                density_map_size=(192, 192),
+                device=device,
+            )
+            data_module.setup()
+
             checkpoint_dir = os.path.join("./models/checkpoints", name)
             os.makedirs(checkpoint_dir, exist_ok=True)
 
