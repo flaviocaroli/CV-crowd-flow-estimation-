@@ -74,8 +74,13 @@ class Up(nn.Module):
     def __init__(self, in_ch, out_ch, **kwargs):
         super().__init__()
         mode = kwargs.get("upsampling_mode", "bilinear")
-        kwargs.pop("dilation_l1") # never perform dilation in upsampling layers
-        kwargs.pop("dilation_l2") # never perform dilation in upsampling layers
+        
+        # Check if dilation parameters exist before popping
+        if "dilation_l1" in kwargs:
+            kwargs.pop("dilation_l1")  # never perform dilation in upsampling layers
+        if "dilation_l2" in kwargs:
+            kwargs.pop("dilation_l2")  # never perform dilation in upsampling layers
+        
         # use bilinear upsampling
         self.in_ch = in_ch
         self.out_ch = out_ch

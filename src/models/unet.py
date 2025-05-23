@@ -23,7 +23,7 @@ class UNetSkip1(nn.Module):
         F = num_filters
         
         self.inc = nn.Sequential(
-            DoubleConv(in_channels, F),
+            DoubleConv(in_channels, F, **kwargs),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
         
@@ -32,7 +32,7 @@ class UNetSkip1(nn.Module):
         for i in range(depth):
             in_ch = F * (2**i)
             out_ch = F * (2**(i+1))
-            self.downs.append(Down(in_ch, out_ch))
+            self.downs.append(Down(in_ch, out_ch, **kwargs))
         
         # build ascending path
         self.ups = nn.ModuleList()
@@ -42,7 +42,7 @@ class UNetSkip1(nn.Module):
             #   - skip feature from encoder: F*2^i
             in_ch = F*(2**(i+1)) + F*(2**i)
             out_ch = F*(2**i)
-            self.ups.append(Up(in_ch, out_ch))
+            self.ups.append(Up(in_ch, out_ch, **kwargs))
         if custom_head:
             self.outc = CustomOutConv(F, **kwargs)
         else:
