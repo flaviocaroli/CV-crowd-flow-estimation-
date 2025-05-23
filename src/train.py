@@ -67,7 +67,6 @@ def main() -> None:
                             "stride_l2": 1,
                             "dilation_l1": 1,
                             "dilation_l2": 1,
-                            "freeze_encoder": freeze,
                         }
                         configs.append(config)
     
