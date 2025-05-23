@@ -42,12 +42,7 @@ class ResNetUNet(nn.Module):
         
         # Bottleneck (exactly like UNet)
         final_ch = self.channels[-1]
-        self.bottleneck = nn.Sequential(
-            nn.Conv2d(final_ch, final_ch, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(final_ch, final_ch, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
+        self.bottleneck = DoubleConv(final_ch, final_ch, **kwargs)
 
         # Build ascending path (exactly like UNet)
         self.ups = nn.ModuleList()

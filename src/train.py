@@ -34,11 +34,11 @@ def main() -> None:
         "sigma": 5.0,
         "pretrained": True,
         "freeze_encoder": False,
-        "max_epochs": 150,
-        "target_input_width": 224,
-        "target_input_height": 224,
-        "target_density_map_width": 224,
-        "target_density_map_height": 224,
+        "max_epochs": 200,
+        "target_input_width": 384,
+        "target_input_height": 384,
+        "target_density_map_width": 384,
+        "target_density_map_height": 384,
         "batch_size": 8,
         "learning_rate": 0.00005,
         "validation_split": 0.1,
@@ -56,12 +56,11 @@ def main() -> None:
         for part in ["part_A", "part_B"]:
             for depth in range(2, 4):
                 for augment in [True, False]:
-                    # Base configuration for this combination
-                    base_cfg = base_config.copy()
-                    base_cfg["model_name"] = model
-                    base_cfg["dataset_part"] = part
-                    base_cfg["augment"] = augment
-                    base_cfg["model_kwargs"] = {
+                    config = base_config.copy()
+                    config["name"] = f"experiment_{model}_{part}_d{depth}"
+                    config["model_name"] = model
+                    config["dataset_part"] = part
+                    config["model_kwargs"] = {
                         "base_channels": 32,
                         "depth": depth,
                         "stride_l1": 1,
@@ -69,19 +68,7 @@ def main() -> None:
                         "dilation_l1": 1,
                         "dilation_l2": 1,
                     }
-                    
-                    if augment:
-                        # Create separate configs for each augment factor
-                        for augment_factor in [3, 5]:
-                            config = base_cfg.copy()
-                            config["augment_factor"] = augment_factor
-                            config["name"] = f"experiment_{model}_{part}_d{depth}_aug{augment_factor}"
-                            configs.append(config)
-                    else:
-                        # Single config without augmentation
-                        config = base_cfg.copy()
-                        config["name"] = f"experiment_{model}_{part}_d{depth}"
-                        configs.append(config)
+                    configs.append(config)
     
     # Parameter sweep
     for part in ["part_A", "part_B"]:
@@ -177,7 +164,7 @@ def main() -> None:
 
             trainer = Trainer(
                 max_epochs=cfg.get("max_epochs", 200),
-                log_every_n_steps=10,
+                log_every_n_steps=50,
                 default_root_dir="./outputs",
                 logger=wandb_logger,
                 callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],

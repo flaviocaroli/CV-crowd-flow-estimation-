@@ -50,12 +50,7 @@ class VGGUNet(nn.Module):
         
         # Bottleneck
         final_ch = self.decoder_channels[-1]
-        self.bottleneck = nn.Sequential(
-            nn.Conv2d(final_ch, final_ch, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(final_ch, final_ch, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
+        self.bottleneck = DoubleConv(final_ch, final_ch, **kwargs)
 
         # Build ascending path
         self.ups = nn.ModuleList()

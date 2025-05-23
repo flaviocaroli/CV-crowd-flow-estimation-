@@ -41,12 +41,7 @@ class UNet(nn.Module):
             self.downs.append(Down(in_ch, out_ch, **kwargs))
         
         # Bottleneck
-        self.bottleneck = nn.Sequential(
-            nn.Conv2d(F * (2**depth), F * (2**depth), kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(F * (2**depth), F * (2**depth), kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
+        self.bottleneck = DoubleConv(F*(2**depth), F*(2**depth), **kwargs)
 
         # Build ascending path
         self.ups = nn.ModuleList()

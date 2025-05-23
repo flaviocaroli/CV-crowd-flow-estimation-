@@ -84,11 +84,11 @@ class LitDensityEstimator(pl.LightningModule):
         self.log(f'{name}/count_rmse', count_rmse_val, on_epoch=True)
 
         # Log images to W&B for the first batch only
-        if batch_idx == 0 and isinstance(self.logger, pl_loggers.WandbLogger):
+        if batch_idx == 0 and isinstance(self.logger, pl_loggers.WandbLogger) and self.current_epoch % 10 == 0:
             fig = plot_dec_steps_batch(img, gt, preds)
             # Log figure
             self.logger.experiment.log({
-                f"{name}_batch_images_epoch_{self.current_epoch}": wandb.Image(fig)
+            f"{name}_batch_images_epoch_{self.current_epoch}": wandb.Image(fig)
             })
             plt.close(fig)
 
