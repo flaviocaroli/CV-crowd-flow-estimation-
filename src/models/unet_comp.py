@@ -117,11 +117,11 @@ class CustomOutConv(nn.Module):
         if dropout_p > 0.0:
             layers.append(nn.Dropout2d(dropout_p))
         layers.append(nn.BatchNorm2d(F // 2))
-        layers.append(nn.ReLU(inplace=True))
+        layers.append(nn.LeakyReLU(inplace=True))
 
         # second conv to single channel
         layers.append(nn.Conv2d(F // 2, 1, kernel_size=1))
-        layers.append(nn.ReLU(inplace=True))
+        layers.append(nn.LeakyReLU(inplace=True))
 
         # optional global average pooling
         if gap:

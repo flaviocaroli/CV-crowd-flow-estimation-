@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torchvision.models as models
-from .unet_comp import DoubleConv, Down, Up, CustomOutConv
+from .unet_comp import DoubleConv, Up, CustomOutConv
 
 
 class VGGUNet(nn.Module):
