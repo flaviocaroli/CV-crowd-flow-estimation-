@@ -2,6 +2,84 @@ import torch.nn as nn
 import torchvision.models as models
 from .unet_comp import DoubleConv, Up, CustomOutConv
 
+class VGGSkip1(nn.Module):
+    """
+    VGG-based U-Net with halved-resolution output (H/2 x W/2), and variable depth:
+    - depth: number of encoder+pool blocks to use (1–5)
+    - uses the first `depth` conv-blocks from VGG19_bn, each followed by its MaxPool
+    - performs (depth-1) ups to return to H/2, matching VGG19BNBackbone structure
+    - custom_head: if True, use CustomOutConv; else a 1×1 conv + ReLU
+    """
+    def __init__(self, depth: int = 5, custom_head: bool = False, **kwargs):
+        super().__init__()
+        assert 1 <= depth <= 5, "depth must be between 1 and 5"
+        self.depth = depth
+        self.custom_head = custom_head
+
+        # Load pretrained VGG19 with batch-norm
+        vgg = models.vgg19_bn(weights=models.VGG19_BN_Weights.IMAGENET1K_V1)
+        feats = list(vgg.features)
+
+        # Split into convolutional blocks and pool layers
+        conv_blocks_all, pool_blocks, current = [], [], []
+        for layer in feats:
+            if isinstance(layer, nn.MaxPool2d):
+                conv_blocks_all.append(nn.Sequential(*current))
+                pool_blocks.append(layer)
+                current = []
+            else:
+                current.append(layer)
+
+        # Keep only the first `depth` blocks for the encoder
+        self.encoder_conv_blocks = nn.ModuleList(conv_blocks_all[:depth])
+        self.encoder_pool_blocks = nn.ModuleList(pool_blocks[:depth])
+
+        # Record output channels of each encoder block
+        self.channels = [block[0].out_channels for block in self.encoder_conv_blocks]
+
+        # Build decoder: exactly (depth-1) Ups to restore to H/2, with correct skip channels
+        self.ups = nn.ModuleList()
+        for j in range(depth - 1, 0, -1):
+            ch = self.channels[j]
+            out_ch = self.channels[j - 1]
+            # merge bottom or previous up output (ch) with skip feature (ch)
+            self.ups.append(Up(ch * 2, out_ch))
+
+        # Output head
+        if custom_head:
+            self.outc = CustomOutConv(self.channels[0], **kwargs)
+        else:
+            self.outc = nn.Sequential(
+                nn.Conv2d(self.channels[0], 1, kernel_size=1),
+                nn.ReLU(inplace=True),
+            )
+
+    def forward(self, x, return_intermediates: bool = False):
+        # Encoder: collect skip features
+        x_enc = []
+        for conv, pool in zip(self.encoder_conv_blocks, self.encoder_pool_blocks):
+            x = conv(x)
+            x_enc.append(x)
+            x = pool(x)
+
+        # Bottom feature at H/(2^depth)
+        x_dec = x
+        intermediates = []
+
+        # Decoder: (depth-1) ups, skipping conv2..conv_depth
+        skip_feats = x_enc[1:]
+        for up, skip in zip(self.ups, reversed(skip_feats)):
+            x_dec = up(x_dec, skip)
+            if return_intermediates:
+                intermediates.append(x_dec)
+
+        out = self.outc(x_dec)
+        if return_intermediates:
+            intermediates.append(out)
+            return intermediates
+        return out
+
+
 
 class VGGUNet(nn.Module):
     """

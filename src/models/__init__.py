@@ -1,7 +1,7 @@
 import os
-from .resnet50 import ResNetUNet
-from .unet import UNet
-from .vgg19 import VGGUNet
+from .resnet50 import ResNetUNet, ResnetSkip1
+from .unet import UNet, UNetSkip1
+from .vgg19 import VGGUNet, VGGSkip1
 import torch
 
 
@@ -16,25 +16,46 @@ def get_model(
     depth = kwargs.pop("depth", kwargs.get("model_depth", 4))
     in_channels = kwargs.pop("in_channels", 3)
     num_filters = kwargs.pop("num_filters", 32)
+    skip_skip = kwargs.pop("skip_skip", False)
 
     # Instantiate backbone
     if model_name == "resnet":
-        model = ResNetUNet(
-            depth=depth,
-            **kwargs,
-        )
+        if skip_skip:
+            model = ResnetSkip1(
+                depth=depth,
+                **kwargs,
+            )
+        else:
+            model = ResNetUNet(
+                depth=depth,
+                **kwargs,
+            )
     elif model_name == "vgg":
-        model = VGGUNet(
-            depth=depth,
-            **kwargs,
-        )
+        if skip_skip:
+            model = VGGSkip1(
+                depth=depth,
+                **kwargs,
+            )
+        else:
+            model = VGGUNet(
+                depth=depth,
+                **kwargs,
+            )
     elif model_name == "unet":
-        model = UNet(
-            in_channels=in_channels,
-            num_filters=num_filters,
-            depth=depth,
-            **kwargs,
-        )
+        if skip_skip:
+            model = UNetSkip1(
+                in_channels=in_channels,
+                num_filters=num_filters,
+                depth=depth,
+                **kwargs,
+            )
+        else:
+            model = UNet(
+                in_channels=in_channels,
+                num_filters=num_filters,
+                depth=depth,
+                **kwargs,
+            )
     else:
         raise ValueError(f"Unsupported backbone '{model_name}'")
 
