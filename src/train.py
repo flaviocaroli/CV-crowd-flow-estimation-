@@ -119,8 +119,6 @@ def main() -> None:
                     cfg.get("target_density_map_width", cfg.get("target_input_width", 384)),
                     cfg.get("target_density_map_height", cfg.get("target_input_height", 384)),
                 ),
-                augment=cfg.get("augment", True),
-                augment_factor=cfg.get("augment_factor", 8),
             )
             data_module.setup()
             
@@ -146,11 +144,13 @@ def main() -> None:
                 min_delta=1e-5,
             )
 
+            freeze_encoder = cfg.pop("freeze_encoder", False)
+
             model = LitDensityEstimator(
                 model_name=cfg.get("model_name", "unet"),
                 lr=cfg.get("learning_rate", 5e-3),
                 pretrained=cfg.get("pretrained", True),
-                freeze_encoder=cfg.get("freeze_encoder", False),
+                freeze_encoder=freeze_encoder,
                 device=device,
                 **cfg.get("model_kwargs", {}),
             )
