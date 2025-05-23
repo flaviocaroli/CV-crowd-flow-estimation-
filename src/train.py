@@ -137,7 +137,7 @@ def main() -> None:
             lr_monitor = LearningRateMonitor(logging_interval="step")
             early_stop_callback = EarlyStopping(
                 monitor="val/mse",
-                patience=20,
+                patience=30,
                 mode="min",
                 verbose=True,
                 min_delta=1e-5,
@@ -166,8 +166,7 @@ def main() -> None:
                 default_root_dir="./outputs",
                 logger=wandb_logger,
                 callbacks=[checkpoint_callback, lr_monitor, early_stop_callback],
-                accelerator=device,
-                devices=[gpu_id] if torch.cuda.is_available() else 1,
+                accelerator="auto",
             )
 
             trainer.fit(model, train_dataloaders=data_module.train_dataloader(), val_dataloaders=data_module.val_dataloader())

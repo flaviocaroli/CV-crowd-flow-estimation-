@@ -6,17 +6,17 @@ from .unet_comp import DoubleConv, Up, CustomOutConv
 class ResNetUNet(nn.Module):
     """
     ResNet50-based U-Net that matches UNet behavior exactly:
-    - Full resolution output (H x W) like UNet
+    - Full resolution output (H x W) like UNet, or optionally half resolution (H/2 x W/2)
     - Same layer structure as UNet but with ResNet encoder features
     - Variable depth (1-4, matching ResNet layers available)
     - Custom head support
     - No dropout parameter
     """
-    def __init__(self, depth: int = 4, custom_head: bool = False, **kwargs):
+    def __init__(self, depth: int = 4, custom_head: bool = False, half_resolution: bool = False, **kwargs):
         super().__init__()
         assert 1 <= depth <= 4, "depth must be between 1 and 4 for ResNet layers"
         self.depth = depth
-        self.half_res = kwargs.get("half_res", False)
+        self.half_resolution = half_resolution
         
         # Load pretrained ResNet50
         resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
@@ -45,19 +45,23 @@ class ResNetUNet(nn.Module):
         final_ch = self.channels[-1]
         self.bottleneck = DoubleConv(final_ch, final_ch, **kwargs)
 
-        # Build ascending path (exactly like UNet)
+        # Build ascending path - skip last decoder if half_resolution=True
         self.ups = nn.ModuleList()
-        for i in reversed(range(depth)):
+        decoder_depth = depth - 1 if half_resolution else depth
+        
+        for i in reversed(range(decoder_depth)):
             in_ch = self.channels[i+1] + self.channels[i]  # decoder + skip
             out_ch = self.channels[i]
             self.ups.append(Up(in_ch, out_ch, **kwargs))
             
-        # Output head (exactly like UNet)
+        # Output head - use appropriate channels based on resolution
+        output_channels = self.channels[1] if half_resolution else self.channels[0]
+        
         if custom_head:
-            self.outc = CustomOutConv(self.channels[0], **kwargs)
+            self.outc = CustomOutConv(output_channels, **kwargs)
         else:
             self.outc = nn.Sequential(
-                nn.Conv2d(self.channels[0], 1, kernel_size=1),
+                nn.Conv2d(output_channels, 1, kernel_size=1),
                 nn.LeakyReLU(inplace=True),
             )
 
@@ -72,9 +76,12 @@ class ResNetUNet(nn.Module):
         # Bottleneck
         x_dec = self.bottleneck(x_enc[-1])
 
-        # Decoder (exactly like UNet)
+        # Decoder - skip connections start from second downsampling if half_resolution
         intermediates = []
-        for up, skip in zip(self.ups, reversed(x_enc[:-1])):
+        skip_start_idx = 1 if self.half_resolution else 0
+        skip_connections = reversed(x_enc[skip_start_idx:-1])
+        
+        for up, skip in zip(self.ups, skip_connections):
             x_dec = up(x_dec, skip)
             if return_intermediates:
                 intermediates.append(x_dec)
@@ -114,25 +121,30 @@ class ResNetDown(nn.Module):
 if __name__ == "__main__":
     import torch
     
-    # Test the fixed ResNet U-Net
-    print("Testing ResNetUNet...")
-    model = ResNetUNet(depth=4, custom_head=True)
+    # Test the original ResNet U-Net
+    model_kwargs = {
+        "dilation_l1": 1,
+        "dilation_l2": 1,
+    }
+    print("Testing ResNetUNet (full resolution)...")
+    model_full = ResNetUNet(depth=4, custom_head=True, half_resolution=False, **model_kwargs)
     x = torch.randn(1, 3, 256, 256)
-    output = model(x)
-    print("Output shape:", output.shape)  # Should be [1, 1, 256, 256] (full resolution)
+    output_full = model_full(x)
+    print("Full resolution output shape:", output_full.shape)  # Should be [1, 1, 256, 256]
     
-    # Test with intermediates
-    intermediates = model(x, return_intermediates=True)
-    print("Number of intermediate outputs:", len(intermediates))
+    # Test the half resolution ResNet U-Net
+    print("\nTesting ResNetUNet (half resolution)...")
+    model_half = ResNetUNet(depth=4, custom_head=True, half_resolution=True, **model_kwargs)
+    output_half = model_half(x)
+    print("Half resolution output shape:", output_half.shape)  # Should be [1, 1, 128, 128]
+    
+    # Test with intermediates for half resolution
+    intermediates = model_half(x, return_intermediates=True )
+    print("Number of intermediate outputs (half res):", len(intermediates))
     for i, inter in enumerate(intermediates):
         print(f"Intermediate {i} shape:", inter.shape)
         
-    # Compare with regular UNet structure
-    print("\nFor comparison - UNet would have these shapes:")
-    print("Input: [1, 3, 256, 256]")
-    print("After inc: [1, 64, 256, 256]") 
-    print("After down1: [1, 256, 128, 128]")
-    print("After down2: [1, 512, 64, 64]")
-    print("After down3: [1, 1024, 32, 32]")
-    print("After down4: [1, 2048, 16, 16]")
-    print("Final output: [1, 1, 256, 256]")
+    print("\nHalf resolution model architecture:")
+    print("- Skips the last decoder layer")
+    print("- Skip connections start from second downsampling layer")
+    print("- Output resolution is H/2 x W/2 instead of H x W")

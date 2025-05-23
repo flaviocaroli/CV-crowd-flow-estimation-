@@ -30,13 +30,14 @@ class MSEWithNegPenaltyLoss(nn.Module):
 
     def forward(self, preds, targets):
         # MSE sum loss
-        mse_loss = torch.sum((preds - targets) ** 2)
+        mse_loss = torch.mean((preds - targets) ** 2)
         
         # Negative predictions penalty (sum of negative parts)
-        neg_penalty = torch.sum(torch.relu(-preds))  # sum of abs of negative values
+        neg_penalty = torch.mean(torch.relu(-preds))  # sum of abs of negative values
         
         # Total loss = MSE + weighted negative penalty
         total_loss = mse_loss + self.neg_penalty_weight * neg_penalty
+        print(f"mse_loss: {mse_loss.item()}, neg_penalty: {neg_penalty.item()}")
         return total_loss
 
 class LitDensityEstimator(pl.LightningModule):
@@ -58,7 +59,7 @@ class LitDensityEstimator(pl.LightningModule):
             freeze_encoder=freeze_encoder,
             **model_kwargs
         )
-        self.criterion = MSEWithNegPenaltyLoss(neg_penalty_weight=10.0)
+        self.criterion = MSEWithNegPenaltyLoss(neg_penalty_weight=1.2)
         self.model.to(device)
 
     def forward(self, x, return_intermediates: bool = False):
